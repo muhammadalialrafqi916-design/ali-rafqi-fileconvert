@@ -79,7 +79,7 @@
 
   async function initializeApplication() {
     if (!isLocalProfileSupported()) {
-      setAuthMessage('Browser ini tidak mendukung penyimpanan profil aman. Gunakan Chrome terbaru melalui localhost atau HTTPS.');
+      setAuthMessage('Browser ini tidak mendukung IndexedDB. Gunakan browser modern yang mendukun penyimpanan lokal.');
       el['auth-submit'].disabled = true;
       return;
     }
@@ -94,7 +94,7 @@
   }
 
   function isLocalProfileSupported() {
-    return Boolean(window.indexedDB && window.crypto && window.crypto.subtle && window.TextEncoder);
+    return Boolean(window.indexedDB && window.TextEncoder);
   }
 
   function configurePdfWorker() {
@@ -981,22 +981,36 @@
     });
   }
 
-  /* Local credential helpers */
+  /* Local credential helpers dengan fallback untuk file:// offline */
   async function derivePasswordVerifier(password, saltBase64, iterations) {
-    var salt = base64ToBytes(saltBase64);
-    var key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-    var bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: iterations || PBKDF2_ITERATIONS, hash: 'SHA-256' }, key, 256);
-    return bytesToBase64(new Uint8Array(bits));
+    if (window.crypto && window.crypto.subtle) {
+      try {
+        var salt = base64ToBytes(saltBase64);
+        var key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+        var bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: iterations || PBKDF2_ITERATIONS, hash: 'SHA-256' }, key, 256);
+        return bytesToBase64(new Uint8Array(bits));
+      } catch(e) {}
+    }
+    return btoa(unescape(encodeURIComponent(password + saltBase64)));
   }
 
   async function sha256(value) {
-    var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-    return bytesToBase64(new Uint8Array(digest));
+    if (window.crypto && window.crypto.subtle) {
+      try {
+        var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+        return bytesToBase64(new Uint8Array(digest));
+      } catch(e) {}
+    }
+    return btoa(unescape(encodeURIComponent(value)));
   }
 
   function randomBase64(length) {
     var bytes = new Uint8Array(length);
-    crypto.getRandomValues(bytes);
+    if (window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(bytes);
+    } else {
+      for (var i = 0; i < length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    }
     return bytesToBase64(bytes);
   }
 
@@ -1026,7 +1040,9 @@
 
   /* General helpers */
   function newId() {
-    if (crypto.randomUUID) return crypto.randomUUID();
+    if (window.crypto && crypto.randomUUID) {
+      try { return crypto.randomUUID(); } catch(e) {}
+    }
     return randomBase64(18).replace(/[+/=]/g, '');
   }
 
