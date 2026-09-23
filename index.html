@@ -26,7 +26,7 @@
         <a class="studio-brand" href="../index.html"><span class="studio-mark">AR</span><span>Ali Rafqi<br>File Studio</span></a>
         <p class="eyebrow"><i></i> KONVERSI FILE, LOKAL</p>
         <h1 id="auth-title">File jadi lebih<br><em>praktis.</em></h1>
-        <p class="auth-lead">Ruang kerja personal untuk mengubah gambar, PDF, dan dokumen sederhana tanpa mengunggah file ke server aplikasi ini.</p>
+        <p class="auth-lead">Ruang kerja personal untuk mengubah gambar, PDF, dokumen, dan audio tanpa mengunggah file ke server aplikasi ini.</p>
         <div class="trust-list" aria-label="Keunggulan aplikasi">
           <div><span>01</span><p><strong>Proses di browser</strong><br>File sumber tetap di perangkat ini.</p></div>
           <div><span>02</span><p><strong>Profil lokal</strong><br>Masuk sekali, lanjutkan nanti di browser ini.</p></div>
@@ -102,6 +102,7 @@
             <button class="tool-card" type="button" data-tool="images-pdf" role="listitem"><span class="tool-icon merge-icon">▤</span><span class="tool-card-copy"><strong>Gambar ke PDF</strong><small>Beberapa gambar, satu PDF</small></span><b>→</b></button>
             <button class="tool-card" type="button" data-tool="documents" role="listitem"><span class="tool-icon doc-icon">≡</span><span class="tool-card-copy"><strong>Dokumen teks ke PDF</strong><small>TXT atau DOCX sederhana</small></span><b>→</b></button>
             <button class="tool-card" type="button" data-tool="merge-pdf" role="listitem"><span class="tool-icon merge-icon">⧉</span><span class="tool-card-copy"><strong>Gabungkan PDF</strong><small>Susun beberapa PDF</small></span><b>→</b></button>
+            <button class="tool-card" type="button" data-tool="video-audio" role="listitem"><span class="tool-icon doc-icon">♫</span><span class="tool-card-copy"><strong>Video ke MP3</strong><small>Ekstrak lagu dari MP4</small></span><b>→</b></button>
           </div>
         </section>
 
@@ -136,6 +137,7 @@
             </div>
             <div class="option-group note-options" data-option-group="documents" hidden><span>ℹ</span><p>TXT dipindahkan ke PDF. DOCX diekstrak sebagai teks sederhana; tata letak, gambar, dan font khusus dapat berubah.</p></div>
             <div class="option-group note-options" data-option-group="merge-pdf" hidden><span>ℹ</span><p>Urutan PDF mengikuti daftar file di atas. Pilih beberapa file PDF lalu gabungkan menjadi satu.</p></div>
+            <div class="option-group note-options" data-option-group="video-audio" hidden><span>ℹ</span><p>Audio akan diekstrak langsung dari file MP4 Anda menjadi file audio MP3 tanpa menyertakan tampilan video.</p></div>
           </div>
           <div class="action-row"><button class="primary-button" id="run-conversion" type="button" disabled><span id="run-label">Ubah gambar</span><b aria-hidden="true">→</b></button><p class="work-status" id="work-status" role="status" aria-live="polite">Pilih file untuk memulai.</p></div>
           <div class="progress-wrap" id="progress-wrap" hidden><div class="progress-copy"><span id="progress-label">Menyiapkan…</span><span id="progress-value">0%</span></div><div class="progress-track"><i id="progress-bar"></i></div></div>
@@ -146,7 +148,7 @@
           <div class="result-list" id="result-list"></div>
         </section>
 
-        <section class="disclaimer"><span>⌁</span><p><strong>Catatan jujur:</strong> Konversi gambar dan PDF dikerjakan penuh di browser. Konversi DOCX dibuat untuk isi teks sederhana, bukan salinan tata letak Word yang persis.</p></section>
+        <section class="disclaimer"><span>⌁</span><p><strong>Catatan jujur:</strong> Konversi gambar, PDF, dan audio dikerjakan penuh di browser. Konversi DOCX dibuat untuk isi teks sederhana, bukan salinan tata letak Word yang persis.</p></section>
       </div>
     </main>
   </section>
