@@ -1,11 +1,14 @@
 (function () {
   'use strict';
 
-  var DB_NAME = 'AliRafqiFileStudio';
+  // --- PERUBAHAN PENTING DI SINI ---
+  var DB_NAME = 'AliRafqiStudio_V2'; // Nama DB diubah agar memaksa browser membuat database 100% baru
   var DB_VERSION = 1;
-  var PBKDF2_ITERATIONS = 100000;
+  var PBKDF2_ITERATIONS = 10000; // Diturunkan drastis agar tidak membuat browser HP Hang/Crash
   var SESSION_DAYS = 45;
-  var ACTIVE_SESSION_KEY = 'aliRafqiFileStudio.activeSession.v1';
+  var ACTIVE_SESSION_KEY = 'aliRafqiFileStudio.activeSession.v2';
+  // ---------------------------------
+
   var THEME_KEY = 'aliRafqiFileStudio.theme.v1';
   var PDF_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   var MAX_FILE_SIZE = 80 * 1024 * 1024;
@@ -84,7 +87,7 @@
 
   async function initializeApplication() {
     if (!isLocalProfileSupported()) {
-      setAuthMessage('Browser ini tidak mendukung penyimpanan profil aman. Gunakan Chrome terbaru melalui localhost atau HTTPS.');
+      setAuthMessage('Browser ini tidak mendukung penyimpanan profil aman. Gunakan Chrome terbaru.');
       el['auth-submit'].disabled = true;
       return;
     }
@@ -115,12 +118,14 @@
   }
 
   function bindAuthEvents() {
-    document.querySelector('.show-password').addEventListener('click', function () {
-      var willShow = el.password.type === 'password';
-      el.password.type = willShow ? 'text' : 'password';
-      this.textContent = willShow ? 'Sembunyi' : 'Tampil';
-      this.setAttribute('aria-label', willShow ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi');
-    });
+    var showPassBtn = document.querySelector('.show-password');
+    if (showPassBtn) {
+      showPassBtn.addEventListener('click', function () {
+        var willShow = el.password.type === 'password';
+        el.password.type = willShow ? 'text' : 'password';
+        this.textContent = willShow ? 'Sembunyi' : 'Tampil';
+      });
+    }
 
     el['switch-auth-mode'].addEventListener('click', function () {
       setAuthMode(state.authMode === 'login' ? 'register' : 'login');
@@ -163,31 +168,9 @@
       if (event.target.closest('button')) return;
       el['file-picker'].click();
     });
-    el['drop-zone'].addEventListener('keydown', function (event) {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        el['file-picker'].click();
-      }
-    });
     el['file-picker'].addEventListener('change', function () {
       addFiles(Array.prototype.slice.call(this.files));
       this.value = '';
-    });
-
-    ['dragenter', 'dragover'].forEach(function (name) {
-      el['drop-zone'].addEventListener(name, function (event) {
-        event.preventDefault();
-        el['drop-zone'].classList.add('is-dragging');
-      });
-    });
-    ['dragleave', 'drop'].forEach(function (name) {
-      el['drop-zone'].addEventListener(name, function (event) {
-        event.preventDefault();
-        el['drop-zone'].classList.remove('is-dragging');
-      });
-    });
-    el['drop-zone'].addEventListener('drop', function (event) {
-      addFiles(Array.prototype.slice.call(event.dataTransfer.files || []));
     });
 
     el['file-list'].addEventListener('click', function (event) {
@@ -201,7 +184,7 @@
     el['clear-files'].addEventListener('click', function () {
       if (state.processing) return;
       clearFiles();
-      clearResults(); // Hapus memori hasil sebelumnya
+      clearResults(); 
       setStatus('Menunggu file...');
     });
 
@@ -210,20 +193,16 @@
     });
 
     el['run-conversion'].addEventListener('click', runConversion);
-
     el['open-history'].addEventListener('click', openHistory);
     document.querySelectorAll('[data-close-dialog]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        this.closest('dialog').close();
-      });
+      button.addEventListener('click', function () { this.closest('dialog').close(); });
     });
     el['clear-history'].addEventListener('click', clearHistory);
-
     el['open-settings'].addEventListener('click', function () { el['settings-dialog'].showModal(); });
     el['logout-button'].addEventListener('click', logout);
     el['delete-local-data'].addEventListener('click', deleteAllLocalData);
-
     el['download-all'].addEventListener('click', downloadAllResults);
+    
     el['result-list'].addEventListener('click', function (event) {
       var button = event.target.closest('[data-download-result]');
       if (!button) return;
@@ -235,24 +214,11 @@
   }
 
   // --- Utility Storage & Crypto ---
-  function safeStorageGet(key) {
-    try { return localStorage.getItem(key); } catch (e) { return null; }
-  }
-
-  function safeStorageSet(key, value) {
-    try { localStorage.setItem(key, value); } catch (e) { console.warn('Penyimpanan lokal diblokir'); }
-  }
-
-  function safeStorageRemove(key) {
-    try { localStorage.removeItem(key); } catch (e) { }
-  }
-
+  function safeStorageGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function safeStorageSet(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+  function safeStorageRemove(key) { try { localStorage.removeItem(key); } catch (e) { } }
   function encodeUTF8(text) { return new TextEncoder().encode(text); }
-
-  function buf2hex(buffer) {
-    return Array.prototype.slice.call(new Uint8Array(buffer)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-  }
-
+  function buf2hex(buffer) { return Array.prototype.slice.call(new Uint8Array(buffer)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join(''); }
   function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
     var k = 1024, sizes = ['B', 'KB', 'MB', 'GB'], i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -309,24 +275,23 @@
     ctx.fillRect(0, 0, 64, 64);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 30px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(name.charAt(0).toUpperCase(), 32, 34);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText((name || 'U').charAt(0).toUpperCase(), 32, 34);
     return canvas.toDataURL('image/png');
   }
 
-  // --- Autentikasi ---
   function setAuthMode(mode) {
     state.authMode = mode;
     var isReg = mode === 'register';
-    el['auth-heading'].textContent = isReg ? 'Buat Profil Offline' : 'Buka Studio File';
-    el['auth-description'].textContent = isReg ? 'Karya dan datamu hanya tersimpan di perangkat ini.' : 'Masuk untuk mengakses alat editor lokal.';
-    el['auth-submit-label'].textContent = isReg ? 'Buat profil dan masuk' : 'Buka file studio';
-    el['auth-kicker'].textContent = isReg ? 'Sudah punya profil?' : 'Baru di sini?';
-    el['switch-copy'].textContent = isReg ? 'Masuk sekarang.' : 'Buat profil baru.';
-    el['display-name'].parentElement.hidden = !isReg;
-    if (isReg) el['display-name'].setAttribute('required', 'required');
-    else el['display-name'].removeAttribute('required');
+    el['auth-heading'].textContent = isReg ? 'Buat Profil Offline' : 'Masuk ke Studio';
+    el['auth-description'].textContent = isReg ? 'Karya dan datamu hanya tersimpan di perangkat ini.' : 'Gunakan profil lokal yang sudah ada di perangkat ini.';
+    el['auth-submit-label'].textContent = isReg ? 'Buat profil dan masuk' : 'Masuk ke Studio';
+    el['auth-kicker'].textContent = isReg ? 'Sudah punya profil?' : 'Belum punya profil lokal?';
+    el['switch-copy'].textContent = isReg ? 'Masuk sekarang.' : 'Buat profil';
+    
+    if (el['display-name'] && el['display-name'].parentElement) {
+       el['display-name'].parentElement.hidden = !isReg;
+    }
     setAuthMessage('');
     el['auth-form'].reset();
   }
@@ -335,24 +300,30 @@
   function setFormLoading(isLoading) {
     el['auth-submit'].disabled = isLoading;
     el['auth-form'].classList.toggle('loading', isLoading);
-    el['auth-submit'].setAttribute('aria-busy', isLoading ? 'true' : 'false');
   }
 
+  // --- LOGIKA FORM LOGIN DIPERBARUI ---
   async function submitAuthForm() {
     setFormLoading(true);
     setAuthMessage('');
-    var dName = el['display-name'] ? el['display-name'].value.trim() : '';
-var uname = el.username ? el.username.value.toLowerCase().replace(/\s/g, '') : '';
-var pass = el.password ? el.password.value : '';
+    
+    // Tarik data dengan aman agar tidak memicu error "Cannot read properties"
+    var dNameEl = el['display-name'];
+    var unameEl = el.username;
+    var passEl = el.password;
 
-    if (!uname || uname.length < 3) { finishAuthError(el.username, 'Nama pengguna minimal 3 karakter tanpa spasi.'); return; }
-    if (!pass || pass.length < 5) { finishAuthError(el.password, 'Kata sandi terlalu pendek (minimal 5 karakter).'); return; }
+    var dName = dNameEl ? dNameEl.value.trim() : '';
+    var uname = unameEl ? unameEl.value.toLowerCase() : '';
+    var pass = passEl ? passEl.value : '';
+
+    if (!uname || uname.length < 3) { finishAuthError(unameEl, 'Nama pengguna minimal 3 karakter.'); return; }
+    if (!pass || pass.length < 5) { finishAuthError(passEl, 'Kata sandi minimal 5 karakter.'); return; }
 
     try {
       if (state.authMode === 'register') {
-        if (!dName) { finishAuthError(el['display-name'], 'Nama tampilan diperlukan.'); return; }
+        if (!dName) { finishAuthError(dNameEl, 'Nama tampilan diperlukan.'); return; }
         var exists = await performDbTransaction('users', 'readonly', function (s) { return s.get(uname); });
-        if (exists) { finishAuthError(el.username, 'Nama pengguna sudah digunakan di perangkat ini.'); return; }
+        if (exists) { finishAuthError(unameEl, 'Nama pengguna sudah dipakai.'); return; }
 
         var salt = crypto.getRandomValues(new Uint8Array(16));
         var hashHex = await generatePasswordHash(pass, salt);
@@ -367,17 +338,29 @@ var pass = el.password ? el.password.value : '';
         finishAuthSuccess(newUser, el['remember-device'].checked);
       } else {
         var userRecord = await performDbTransaction('users', 'readonly', function (s) { return s.get(uname); });
-        if (!userRecord) { finishAuthError(null, 'Nama pengguna atau kata sandi salah.'); return; }
+        
+        // Pesan lebih jelas jika belum buat profil di database baru
+        if (!userRecord) { 
+          finishAuthError(null, 'Nama belum terdaftar. Klik "Buat profil" di bawah.'); 
+          return; 
+        }
+
+        if (!userRecord.saltHex) {
+           finishAuthError(null, 'Format akun lama. Silakan hapus/buat profil baru.');
+           return;
+        }
 
         var saltBytes = new Uint8Array(userRecord.saltHex.match(/.{1,2}/g).map(function (byte) { return parseInt(byte, 16); }));
         var inputHashHex = await generatePasswordHash(pass, saltBytes);
 
-        if (inputHashHex !== userRecord.hashHex) { finishAuthError(null, 'Nama pengguna atau kata sandi salah.'); return; }
+        if (inputHashHex !== userRecord.hashHex) { finishAuthError(null, 'Kata sandi salah.'); return; }
         finishAuthSuccess(userRecord, el['remember-device'].checked);
       }
     } catch (error) {
       console.error(error);
-      setAuthMessage('Terjadi kesalahan yang tidak terduga. Coba lagi.');
+      // Popup Alert ini ditambahkan agar kita tahu JIKA HP KAMU memblokir script
+      alert("Terdapat error sistem di HP kamu: " + error.message); 
+      setAuthMessage('Gagal masuk. Lihat pesan popup.');
       setFormLoading(false);
     }
   }
@@ -437,15 +420,14 @@ var pass = el.password ? el.password.value : '';
   function logout() {
     safeStorageRemove(ACTIVE_SESSION_KEY);
     state.currentUser = null;
-    clearFiles();
-    clearResults(); // Bersihkan hasil file memori
+    clearFiles(); clearResults(); 
     el['studio-shell'].hidden = true;
     el['auth-screen'].hidden = false;
     el['settings-dialog'].close();
   }
 
   async function deleteAllLocalData() {
-    if (!confirm('Peringatan: Ini akan menghapus permanen profil, seluruh file yang dikonversi (riwayat), dan pengaturan Anda di perangkat ini. Lanjutkan?')) return;
+    if (!confirm('Hapus permanen profil dan riwayat?')) return;
     try {
       var request = indexedDB.deleteDatabase(DB_NAME);
       request.onsuccess = function () {
@@ -453,8 +435,8 @@ var pass = el.password ? el.password.value : '';
         alert('Data berhasil dihapus. Halaman akan dimuat ulang.');
         window.location.reload();
       };
-      request.onerror = function () { alert('Gagal menghapus sebagian data. Coba hapus riwayat browser.'); };
-    } catch (error) { alert('Tidak dapat menghapus data. Hapus melalui pengaturan browser.'); }
+      request.onerror = function () { alert('Gagal menghapus sebagian data.'); };
+    } catch (error) { alert('Tidak dapat menghapus data.'); }
   }
 
   // --- Manajemen Riwayat ---
@@ -462,16 +444,10 @@ var pass = el.password ? el.password.value : '';
     if (!state.currentUser) return;
     try {
       await performDbTransaction('history', 'readwrite', function (s) {
-        return s.add({
-          username: state.currentUser.username,
-          timestamp: Date.now(),
-          filename: resultData.filename,
-          sizeBytes: resultData.blob.size,
-          toolUsed: state.selectedTool
-        });
+        return s.add({ username: state.currentUser.username, timestamp: Date.now(), filename: resultData.filename, sizeBytes: resultData.blob.size, toolUsed: state.selectedTool });
       });
       updateHistoryBadge();
-    } catch (e) { console.error('Gagal menyimpan riwayat', e); }
+    } catch (e) { console.error('Gagal simpan riwayat', e); }
   }
 
   async function updateHistoryBadge() {
@@ -487,24 +463,19 @@ var pass = el.password ? el.password.value : '';
     try {
       var all = await performDbTransaction('history', 'readonly', function (s) { return s.index('username').getAll(state.currentUser.username); });
       all.sort(function (a, b) { return b.timestamp - a.timestamp; });
-
       if (!all.length) {
         var li = document.createElement('li');
-        li.textContent = 'Belum ada catatan unduhan. Mulai konversi file pertamamu!';
-        li.style.color = 'var(--text-secondary)';
-        li.style.textAlign = 'center';
+        li.textContent = 'Belum ada catatan unduhan.';
+        li.style.color = 'var(--text-secondary)'; li.style.textAlign = 'center';
         el['history-list'].append(li);
       } else {
         all.forEach(function (h) {
           var li = document.createElement('li');
-          var name = document.createElement('strong');
-          name.textContent = h.filename;
-          var details = document.createElement('span');
-          details.className = 'history-details';
+          var name = document.createElement('strong'); name.textContent = h.filename;
+          var details = document.createElement('span'); details.className = 'history-details';
           var date = new Date(h.timestamp);
           details.textContent = formatBytes(h.sizeBytes) + ' • ' + h.toolUsed + ' • ' + date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          li.append(name, details);
-          el['history-list'].append(li);
+          li.append(name, details); el['history-list'].append(li);
         });
       }
       el['history-dialog'].showModal();
@@ -512,7 +483,7 @@ var pass = el.password ? el.password.value : '';
   }
 
   async function clearHistory() {
-    if (!confirm('Hapus seluruh riwayat unduhanmu? File aslinya tidak akan terhapus dari perangkat ini.')) return;
+    if (!confirm('Hapus seluruh riwayat unduhanmu?')) return;
     try {
       var db = await getDatabase();
       var tx = db.transaction('history', 'readwrite');
@@ -522,14 +493,10 @@ var pass = el.password ? el.password.value : '';
 
       request.onsuccess = function (e) {
         var cursor = e.target.result;
-        if (cursor) {
-          store.delete(cursor.primaryKey);
-          cursor.continue();
-        } else {
+        if (cursor) { store.delete(cursor.primaryKey); cursor.continue(); } 
+        else {
           el['history-list'].replaceChildren();
-          var li = document.createElement('li');
-          li.textContent = 'Riwayat sudah bersih.';
-          li.style.textAlign = 'center';
+          var li = document.createElement('li'); li.textContent = 'Riwayat sudah bersih.'; li.style.textAlign = 'center';
           el['history-list'].append(li);
           updateHistoryBadge();
         }
@@ -549,90 +516,55 @@ var pass = el.password ? el.password.value : '';
       btn.setAttribute('aria-pressed', btn.dataset.tool === toolName ? 'true' : 'false');
     });
 
-    el['active-tool-marker'].textContent = tool.marker;
-    el['workbench-title'].textContent = tool.title;
-    el['workbench-description'].textContent = tool.description;
-    el['drop-title'].textContent = tool.dropTitle;
-    el['file-requirements'].textContent = tool.requirements;
-    el['file-picker'].accept = tool.accept;
+    el['active-tool-marker'].textContent = tool.marker; el['workbench-title'].textContent = tool.title;
+    el['workbench-description'].textContent = tool.description; el['drop-title'].textContent = tool.dropTitle;
+    el['file-requirements'].textContent = tool.requirements; el['file-picker'].accept = tool.accept;
     el['run-label'].textContent = tool.runLabel;
 
     el['conversion-options'].replaceChildren();
     if (toolName === 'images' || toolName === 'pdf-images') {
-      var select = document.createElement('select');
-      select.id = 'dynamic-format-select';
-      select.style.marginBottom = '12px';
-      select.style.width = '100%';
+      var select = document.createElement('select'); select.id = 'dynamic-format-select';
+      select.style.marginBottom = '12px'; select.style.width = '100%';
       var opts = toolName === 'images' ? ['jpg', 'png', 'webp'] : ['png', 'jpg'];
       opts.forEach(function (f) {
-        var option = document.createElement('option');
-        option.value = f;
-        option.textContent = 'Ubah ke ' + f.toUpperCase();
+        var option = document.createElement('option'); option.value = f; option.textContent = 'Ubah ke ' + f.toUpperCase();
         select.append(option);
       });
-      el['conversion-options'].append(select);
-      el['image-quality'].parentElement.hidden = false;
-    } else {
-      el['image-quality'].parentElement.hidden = true;
-    }
+      el['conversion-options'].append(select); el['image-quality'].parentElement.hidden = false;
+    } else { el['image-quality'].parentElement.hidden = true; }
 
-    if (toolName === 'documents' || toolName === 'images-pdf' || toolName === 'merge-pdf') {
-      el['pdf-pages'].parentElement.hidden = false;
-    } else {
-      el['pdf-pages'].parentElement.hidden = true;
-    }
+    if (toolName === 'documents' || toolName === 'images-pdf' || toolName === 'merge-pdf') { el['pdf-pages'].parentElement.hidden = false; } 
+    else { el['pdf-pages'].parentElement.hidden = true; }
 
-    if (!skipClear) {
-      clearFiles();
-      clearResults(); // Hapus memori hasil lama
-      setStatus('Menunggu file...');
-    } else {
-      validateFilesAgainstTool();
-    }
+    if (!skipClear) { clearFiles(); clearResults(); setStatus('Menunggu file...'); } 
+    else { validateFilesAgainstTool(); }
   }
 
   function addFiles(newFiles) {
     if (state.processing) return;
     var tool = tools[state.selectedTool];
-
     var totalSize = state.files.reduce(function (sum, f) { return sum + f.size; }, 0);
     var addedCount = 0;
 
     newFiles.forEach(function (file) {
-      if (state.files.length >= tool.maxFiles) { setStatus('Maksimal ' + tool.maxFiles + ' file untuk alat ini.', true); return; }
+      if (state.files.length >= tool.maxFiles) { setStatus('Maksimal ' + tool.maxFiles + ' file.', true); return; }
       var ext = file.name.split('.').pop().toLowerCase();
-      if (tool.extensions.indexOf(ext) === -1) { setStatus('Format ' + ext.toUpperCase() + ' tidak didukung alat ini.', true); return; }
-      if (file.size > MAX_FILE_SIZE) { setStatus(file.name + ' melebihi batas 80MB per file.', true); return; }
-      if (totalSize + file.size > MAX_TOTAL_SIZE) { setStatus('Total ukuran melampaui kapasitas aman 200MB.', true); return; }
-
+      if (tool.extensions.indexOf(ext) === -1) { setStatus('Format ' + ext.toUpperCase() + ' tidak didukung.', true); return; }
+      if (file.size > MAX_FILE_SIZE) { setStatus(file.name + ' melebihi batas 80MB.', true); return; }
+      if (totalSize + file.size > MAX_TOTAL_SIZE) { setStatus('Total ukuran melampaui 200MB.', true); return; }
       if (state.files.some(function (f) { return f.name === file.name && f.size === file.size; })) return;
 
-      state.files.push(file);
-      totalSize += file.size;
-      addedCount++;
+      state.files.push(file); totalSize += file.size; addedCount++;
     });
 
-    if (addedCount > 0) {
-      renderFiles();
-      setStatus(state.files.length + ' file siap diproses.');
-    }
+    if (addedCount > 0) { renderFiles(); setStatus(state.files.length + ' file siap diproses.'); }
   }
 
   function validateFilesAgainstTool() {
     var tool = tools[state.selectedTool];
-    var validFiles = state.files.filter(function (file) {
-      var ext = file.name.split('.').pop().toLowerCase();
-      return tool.extensions.indexOf(ext) !== -1;
-    });
-
-    if (validFiles.length !== state.files.length) {
-      state.files = validFiles;
-      setStatus('Beberapa file dihapus karena tidak cocok dengan alat baru.', true);
-    }
-    if (state.files.length > tool.maxFiles) {
-      state.files = state.files.slice(0, tool.maxFiles);
-      setStatus('Jumlah file dipangkas menyesuaikan batas maksimal alat.', true);
-    }
+    var validFiles = state.files.filter(function (file) { return tool.extensions.indexOf(file.name.split('.').pop().toLowerCase()) !== -1; });
+    if (validFiles.length !== state.files.length) { state.files = validFiles; setStatus('Beberapa file dihapus.', true); }
+    if (state.files.length > tool.maxFiles) { state.files = state.files.slice(0, tool.maxFiles); setStatus('Jumlah file dipangkas.', true); }
     renderFiles();
   }
 
@@ -644,36 +576,20 @@ var pass = el.password ? el.password.value : '';
 
     state.files.forEach(function (file, index) {
       var li = document.createElement('li');
-      var nameSpan = document.createElement('span');
-      nameSpan.className = 'file-name';
-      nameSpan.textContent = file.name;
-      var sizeSpan = document.createElement('span');
-      sizeSpan.className = 'file-size';
-      sizeSpan.textContent = formatBytes(file.size);
-      var removeBtn = document.createElement('button');
-      removeBtn.className = 'remove-file';
-      removeBtn.dataset.removeFile = String(index);
+      var nameSpan = document.createElement('span'); nameSpan.className = 'file-name'; nameSpan.textContent = file.name;
+      var sizeSpan = document.createElement('span'); sizeSpan.className = 'file-size'; sizeSpan.textContent = formatBytes(file.size);
+      var removeBtn = document.createElement('button'); removeBtn.className = 'remove-file'; removeBtn.dataset.removeFile = String(index);
       removeBtn.innerHTML = '&times;';
-      removeBtn.setAttribute('aria-label', 'Hapus ' + file.name);
-
-      li.append(nameSpan, sizeSpan, removeBtn);
-      el['file-list'].append(li);
+      li.append(nameSpan, sizeSpan, removeBtn); el['file-list'].append(li);
     });
   }
 
-  function clearFiles() {
-    state.files = [];
-    renderFiles();
-  }
+  function clearFiles() { state.files = []; renderFiles(); }
 
   // --- Logika Pratinjau Memory-Safe ---
   function clearResults() {
     if (state.results && state.results.length) {
-      state.results.forEach(function(r) {
-        if (r.previewUrl) {
-          URL.revokeObjectURL(r.previewUrl);
-        }
-      });
+      state.results.forEach(function(r) { if (r.previewUrl) { URL.revokeObjectURL(r.previewUrl); } });
     }
     state.results = [];
     el['results-section'].hidden = true;
@@ -685,113 +601,64 @@ var pass = el.password ? el.password.value : '';
     el['result-list'].replaceChildren();
 
     state.results.forEach(function (result, index) {
-      var item = document.createElement('div');
-      item.className = 'result-item';
+      var item = document.createElement('div'); item.className = 'result-item';
 
-      // Kontainer Pratinjau
       var previewBox = document.createElement('div');
       previewBox.style.cssText = 'background: var(--surface-hover); border-radius: 8px; margin-bottom: 12px; overflow: hidden; display: flex; justify-content: center; align-items: center; border: 1px solid var(--border-color);';
-      
       var type = result.blob.type;
       
       if (type.startsWith('image/')) {
-        var img = document.createElement('img');
-        img.src = result.previewUrl;
-        img.style.cssText = 'max-width: 100%; max-height: 250px; object-fit: contain; display: block;';
+        var img = document.createElement('img'); img.src = result.previewUrl; img.style.cssText = 'max-width: 100%; max-height: 250px; object-fit: contain; display: block;';
         previewBox.append(img);
       } else if (type === 'application/pdf') {
-        var iframe = document.createElement('iframe');
-        iframe.src = result.previewUrl;
-        iframe.style.cssText = 'width: 100%; height: 350px; border: none; display: block;';
+        var iframe = document.createElement('iframe'); iframe.src = result.previewUrl; iframe.style.cssText = 'width: 100%; height: 350px; border: none; display: block;';
         previewBox.append(iframe);
       } else if (type.startsWith('audio/')) {
-        var audio = document.createElement('audio');
-        audio.controls = true;
-        audio.src = result.previewUrl;
-        audio.style.cssText = 'width: 100%; margin: 15px;';
+        var audio = document.createElement('audio'); audio.controls = true; audio.src = result.previewUrl; audio.style.cssText = 'width: 100%; margin: 15px;';
         previewBox.append(audio);
       } else if (type.startsWith('video/')) {
-        var video = document.createElement('video');
-        video.controls = true;
-        video.src = result.previewUrl;
-        video.style.cssText = 'max-width: 100%; max-height: 300px; display: block;';
+        var video = document.createElement('video'); video.controls = true; video.src = result.previewUrl; video.style.cssText = 'max-width: 100%; max-height: 300px; display: block;';
         previewBox.append(video);
       } else {
-        var fallback = document.createElement('div');
-        fallback.style.padding = '20px';
-        fallback.style.color = 'var(--text-secondary)';
-        fallback.textContent = 'Pratinjau tidak tersedia untuk format ini';
+        var fallback = document.createElement('div'); fallback.style.padding = '20px'; fallback.style.color = 'var(--text-secondary)'; fallback.textContent = 'Pratinjau tidak tersedia';
         previewBox.append(fallback);
       }
 
-      var infoBar = document.createElement('div');
-      infoBar.style.display = 'flex';
-      infoBar.style.justifyContent = 'space-between';
-      infoBar.style.alignItems = 'center';
-      infoBar.style.gap = '10px';
-
-      var copy = document.createElement('div');
-      copy.style.overflow = 'hidden';
-      var name = document.createElement('strong');
-      name.textContent = result.filename;
-      name.style.display = 'block';
-      name.style.whiteSpace = 'nowrap';
-      name.style.overflow = 'hidden';
-      name.style.textOverflow = 'ellipsis';
-      
-      var detail = document.createElement('div');
-      detail.style.fontSize = '0.85em';
-      detail.style.color = 'var(--text-secondary)';
+      var infoBar = document.createElement('div'); infoBar.style.cssText = 'display: flex; justify-content: space-between; align-items: center; gap: 10px;';
+      var copy = document.createElement('div'); copy.style.overflow = 'hidden';
+      var name = document.createElement('strong'); name.textContent = result.filename; name.style.cssText = 'display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+      var detail = document.createElement('div'); detail.style.cssText = 'font-size: 0.85em; color: var(--text-secondary);';
       detail.textContent = formatBytes(result.blob.size) + ' · dari ' + result.sourceName;
       copy.append(name, detail);
 
-      var download = document.createElement('button');
-      download.className = 'download-one';
-      download.type = 'button';
-      download.dataset.downloadResult = String(index);
+      var download = document.createElement('button'); download.className = 'download-one'; download.type = 'button'; download.dataset.downloadResult = String(index);
       download.innerHTML = '<svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg> Unduh';
 
-      infoBar.append(copy, download);
-      item.append(previewBox, infoBar);
-      el['result-list'].append(item);
+      infoBar.append(copy, download); item.append(previewBox, infoBar); el['result-list'].append(item);
     });
   }
 
-  function setStatus(msg, isError) {
-    el['work-status'].textContent = msg;
-    el['work-status'].style.color = isError ? '#e74c3c' : 'inherit';
-  }
+  function setStatus(msg, isError) { el['work-status'].textContent = msg; el['work-status'].style.color = isError ? '#e74c3c' : 'inherit'; }
 
   function setProcessing(isProcessing, statusText) {
-    state.processing = isProcessing;
-    document.body.classList.toggle('is-processing', isProcessing);
-    el['run-conversion'].disabled = isProcessing || !state.files.length;
-    el['clear-files'].disabled = isProcessing;
-    el['file-picker'].disabled = isProcessing;
+    state.processing = isProcessing; document.body.classList.toggle('is-processing', isProcessing);
+    el['run-conversion'].disabled = isProcessing || !state.files.length; el['clear-files'].disabled = isProcessing; el['file-picker'].disabled = isProcessing;
     document.querySelectorAll('.remove-file').forEach(function (b) { b.disabled = isProcessing; });
 
     if (isProcessing) {
-      el['progress-wrap'].hidden = false;
-      el['progress-label'].textContent = statusText || 'Memproses...';
-      el['progress-value'].textContent = '0%';
-      el['progress-bar'].style.width = '0%';
-      clearResults(); // Hapus saat memulai proses baru
-      setStatus('Bekerja, mohon tunggu...', false);
+      el['progress-wrap'].hidden = false; el['progress-label'].textContent = statusText || 'Memproses...';
+      el['progress-value'].textContent = '0%'; el['progress-bar'].style.width = '0%';
+      clearResults(); setStatus('Bekerja, mohon tunggu...', false);
     } else {
       el['progress-wrap'].hidden = true;
-      if (state.lastFailures.length > 0) {
-        setStatus('Selesai dengan ' + state.lastFailures.length + ' peringatan (lihat konsol).', true);
-        console.warn('File gagal:', state.lastFailures);
-      } else {
-        setStatus(state.results.length ? 'Selesai! Silakan periksa hasil di bawah.' : 'Pilih file untuk memulai.');
-      }
+      if (state.lastFailures.length > 0) { setStatus('Selesai dengan ' + state.lastFailures.length + ' peringatan.', true); } 
+      else { setStatus(state.results.length ? 'Selesai! Silakan periksa hasil di bawah.' : 'Pilih file untuk memulai.'); }
     }
   }
 
   function updateProgress(percent, label) {
     var p = Math.max(0, Math.min(100, Math.round(percent)));
-    el['progress-bar'].style.width = p + '%';
-    el['progress-value'].textContent = p + '%';
+    el['progress-bar'].style.width = p + '%'; el['progress-value'].textContent = p + '%';
     if (label) el['progress-label'].textContent = label;
   }
 
@@ -801,8 +668,7 @@ var pass = el.password ? el.password.value : '';
     setProcessing(true, 'Menyiapkan mesin...');
     state.lastFailures = [];
 
-    var tool = state.selectedTool;
-    var outputs = [];
+    var tool = state.selectedTool; var outputs = [];
     var quality = parseInt(el['image-quality'].value, 10) / 100;
     var pdfFormatSelect = document.getElementById('dynamic-format-select');
     var targetFormat = pdfFormatSelect ? pdfFormatSelect.value : 'png';
@@ -812,10 +678,8 @@ var pass = el.password ? el.password.value : '';
       if (tool === 'images') {
         for (var i = 0; i < state.files.length; i++) {
           updateProgress((i / state.files.length) * 100, 'Memproses ' + (i + 1) + '/' + state.files.length);
-          try {
-            var res = await convertImageFormat(state.files[i], targetFormat, quality);
-            outputs.push(res);
-          } catch (e) { state.lastFailures.push({ file: state.files[i].name, error: e.message }); }
+          try { outputs.push(await convertImageFormat(state.files[i], targetFormat, quality)); } 
+          catch (e) { state.lastFailures.push({ file: state.files[i].name, error: e.message }); }
         }
       } else if (tool === 'images-pdf') {
         updateProgress(10, 'Memuat library PDF...');
@@ -826,9 +690,8 @@ var pass = el.password ? el.password.value : '';
         await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
         for (var j = 0; j < state.files.length; j++) {
           updateProgress(10 + ((j / state.files.length) * 80), 'Merender dokumen ' + (j + 1));
-          try {
-            outputs.push(await convertDocumentToPdf(state.files[j]));
-          } catch (e) { state.lastFailures.push({ file: state.files[j].name, error: e.message }); }
+          try { outputs.push(await convertDocumentToPdf(state.files[j])); } 
+          catch (e) { state.lastFailures.push({ file: state.files[j].name, error: e.message }); }
         }
       } else if (tool === 'merge-pdf') {
         updateProgress(10, 'Memuat library PDF...');
@@ -846,41 +709,27 @@ var pass = el.password ? el.password.value : '';
           } catch (e) { state.lastFailures.push({ file: state.files[k].name, error: e.message }); }
         }
       } else if (tool === 'video-audio') {
-        updateProgress(5, 'Mengekstrak audio murni (tanpa server)...');
+        updateProgress(5, 'Mengekstrak audio murni...');
         for (var v = 0; v < state.files.length; v++) {
           updateProgress(5 + ((v / state.files.length) * 90), 'Memproses video ' + (v + 1));
-          try {
-            outputs.push(await extractAudioFromVideo(state.files[v]));
-          } catch (e) { state.lastFailures.push({ file: state.files[v].name, error: e.message }); }
+          try { outputs.push(await extractAudioFromVideo(state.files[v])); } 
+          catch (e) { state.lastFailures.push({ file: state.files[v].name, error: e.message }); }
         }
       }
 
       updateProgress(100, 'Merapikan hasil...');
-      
-      // Tambahkan URL Pratinjau sebelum menyimpan ke state
-      outputs.forEach(function(out) {
-         out.previewUrl = URL.createObjectURL(out.blob);
-      });
-      
-      state.results = outputs;
-      renderResults();
+      outputs.forEach(function(out) { out.previewUrl = URL.createObjectURL(out.blob); });
+      state.results = outputs; renderResults();
 
-    } catch (criticalError) {
-      console.error(criticalError);
-      setStatus('Kesalahan fatal: ' + criticalError.message, true);
-    } finally {
-      setProcessing(false);
-    }
+    } catch (criticalError) { setStatus('Kesalahan fatal: ' + criticalError.message, true); } 
+    finally { setProcessing(false); }
   }
 
   // --- Alat: Manipulasi DOM/Canvas/Binary ---
-
   async function loadLibrary(url, globalObjName) {
     if (window[globalObjName]) return;
     return new Promise(function (resolve, reject) {
-      var script = document.createElement('script');
-      script.src = url;
-      script.onload = resolve;
+      var script = document.createElement('script'); script.src = url; script.onload = resolve;
       script.onerror = function () { reject(new Error('Gagal memuat ' + globalObjName)); };
       document.head.appendChild(script);
     });
@@ -888,40 +737,31 @@ var pass = el.password ? el.password.value : '';
 
   function readFileAsDataUrl(file) {
     return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () { resolve(reader.result); };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+      var reader = new FileReader(); reader.onload = function () { resolve(reader.result); };
+      reader.onerror = reject; reader.readAsDataURL(file);
     });
   }
 
   function readFileAsArrayBuffer(file) {
     return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () { resolve(reader.result); };
-      reader.onerror = reject;
-      reader.readAsArrayBuffer(file);
+      var reader = new FileReader(); reader.onload = function () { resolve(reader.result); };
+      reader.onerror = reject; reader.readAsArrayBuffer(file);
     });
   }
 
   function loadImageFromUrl(url) {
     return new Promise(function (resolve, reject) {
-      var img = new Image();
-      img.onload = function () { resolve(img); };
-      img.onerror = function () { reject(new Error('Gagal membaca gambar.')); };
-      img.src = url;
+      var img = new Image(); img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('Gagal membaca gambar.')); }; img.src = url;
     });
   }
 
   async function convertImageFormat(file, format, quality) {
     var dataUrl = await readFileAsDataUrl(file);
     var img = await loadImageFromUrl(dataUrl);
-
     if (img.width * img.height > MAX_IMAGE_PIXELS) throw new Error('Resolusi gambar terlalu besar. Maks 40MP.');
 
-    var canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
+    var canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
     var ctx = canvas.getContext('2d');
     if (format === 'jpg') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
     ctx.drawImage(img, 0, 0);
@@ -938,8 +778,7 @@ var pass = el.password ? el.password.value : '';
 
   async function convertImagesToPdf(files) {
     var doc = new window.jspdf.jsPDF({ orientation: 'p', unit: 'px', format: 'a4' });
-    var docWidth = doc.internal.pageSize.getWidth();
-    var docHeight = doc.internal.pageSize.getHeight();
+    var docWidth = doc.internal.pageSize.getWidth(), docHeight = doc.internal.pageSize.getHeight();
     var pageFormat = el['pdf-pages'].value;
 
     for (var i = 0; i < files.length; i++) {
@@ -952,27 +791,20 @@ var pass = el.password ? el.password.value : '';
       var finalW, finalH, x = 0, y = 0;
 
       if (pageFormat === 'fit') {
-        if (ratio > docWidth / docHeight) {
-          finalW = docWidth; finalH = docWidth / ratio; y = (docHeight - finalH) / 2;
-        } else {
-          finalH = docHeight; finalW = docHeight * ratio; x = (docWidth - finalW) / 2;
-        }
-      } else { // fill
-        if (ratio > docWidth / docHeight) {
-          finalH = docHeight; finalW = docHeight * ratio; x = (docWidth - finalW) / 2;
-        } else {
-          finalW = docWidth; finalH = docWidth / ratio; y = (docHeight - finalH) / 2;
-        }
+        if (ratio > docWidth / docHeight) { finalW = docWidth; finalH = docWidth / ratio; y = (docHeight - finalH) / 2; } 
+        else { finalH = docHeight; finalW = docHeight * ratio; x = (docWidth - finalW) / 2; }
+      } else { 
+        if (ratio > docWidth / docHeight) { finalH = docHeight; finalW = docHeight * ratio; x = (docWidth - finalW) / 2; } 
+        else { finalW = docWidth; finalH = docWidth / ratio; y = (docHeight - finalH) / 2; }
       }
       doc.addImage(img, 'JPEG', x, y, finalW, finalH, undefined, 'FAST');
     }
 
-    var pdfBlob = doc.output('blob');
-    return { blob: pdfBlob, filename: 'Studio_Album_Gambar.pdf', sourceName: files.length + ' Gambar' };
+    return { blob: doc.output('blob'), filename: 'Studio_Album_Gambar.pdf', sourceName: files.length + ' Gambar' };
   }
 
   async function convertDocumentToPdf(file) {
-    if (!file.name.toLowerCase().endsWith('.txt')) throw new Error('Saat ini hanya mendukung konversi TXT ke PDF di sisi klien murni.');
+    if (!file.name.toLowerCase().endsWith('.txt')) throw new Error('Saat ini hanya mendukung TXT.');
     var text = await file.text();
     var doc = new window.jspdf.jsPDF();
     var lines = doc.splitTextToSize(text, 180);
@@ -980,8 +812,7 @@ var pass = el.password ? el.password.value : '';
 
     for (var i = 0; i < lines.length; i++) {
       if (cursorY > 280) { doc.addPage(); cursorY = 20; }
-      doc.text(lines[i], 15, cursorY);
-      cursorY += 7;
+      doc.text(lines[i], 15, cursorY); cursorY += 7;
     }
 
     var baseName = file.name.substring(0, file.name.lastIndexOf('.'));
@@ -1001,11 +832,7 @@ var pass = el.password ? el.password.value : '';
     }
 
     var mergedBytes = await mergedPdf.save();
-    return {
-      blob: new Blob([mergedBytes], { type: 'application/pdf' }),
-      filename: 'Studio_Gabungan.pdf',
-      sourceName: files.length + ' Dokumen PDF'
-    };
+    return { blob: new Blob([mergedBytes], { type: 'application/pdf' }), filename: 'Studio_Gabungan.pdf', sourceName: files.length + ' Dokumen PDF' };
   }
 
   async function extractPdfToImages(file, mimeType, extension, quality) {
@@ -1017,43 +844,32 @@ var pass = el.password ? el.password.value : '';
     for (var i = 1; i <= totalPages; i++) {
       updateProgress(((i / totalPages) * 100), 'Render Halaman ' + i);
       var page = await pdf.getPage(i);
-      var viewport = page.getViewport({ scale: 2.0 }); // Resolusi 2x untuk kejernihan
-      var canvas = document.createElement('canvas');
-      var ctx = canvas.getContext('2d', { alpha: false });
+      var viewport = page.getViewport({ scale: 2.0 }); 
+      var canvas = document.createElement('canvas'); var ctx = canvas.getContext('2d', { alpha: false });
       canvas.width = viewport.width; canvas.height = viewport.height;
 
       if (extension === 'jpg') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-
       await page.render({ canvasContext: ctx, viewport: viewport }).promise;
 
       var blob = await new Promise(function (resolve) { canvas.toBlob(resolve, mimeType, quality); });
       var baseName = file.name.substring(0, file.name.lastIndexOf('.'));
-      results.push({
-        blob: blob,
-        filename: baseName + '_Hal' + i + '.' + extension,
-        sourceName: file.name + ' (Hal ' + i + ')'
-      });
+      results.push({ blob: blob, filename: baseName + '_Hal' + i + '.' + extension, sourceName: file.name + ' (Hal ' + i + ')' });
     }
     return results;
   }
 
   async function extractAudioFromVideo(file) {
     return new Promise(function (resolve, reject) {
-      if (!window.AudioContext && !window.webkitAudioContext) return reject(new Error('Browser Anda tidak mendukung Web Audio API.'));
+      if (!window.AudioContext && !window.webkitAudioContext) return reject(new Error('Browser tidak mendukung Web Audio API.'));
       var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       var reader = new FileReader();
 
       reader.onload = function () {
-        var videoData = reader.result;
-        audioCtx.decodeAudioData(videoData, function (buffer) {
+        audioCtx.decodeAudioData(reader.result, function (buffer) {
           var wavBlob = audioBufferToWav(buffer);
           var baseName = file.name.substring(0, file.name.lastIndexOf('.')) || 'audio';
-          resolve({
-            blob: wavBlob,
-            filename: baseName + '_studio.wav',
-            sourceName: file.name
-          });
-        }, function (e) { reject(new Error('Gagal mendekode audio dari video. ' + (e ? e.message : ''))); });
+          resolve({ blob: wavBlob, filename: baseName + '_studio.wav', sourceName: file.name });
+        }, function (e) { reject(new Error('Gagal mendekode audio dari video.')); });
       };
       reader.onerror = function () { reject(new Error('Gagal membaca file video.')); };
       reader.readAsArrayBuffer(file);
@@ -1068,80 +884,49 @@ var pass = el.password ? el.password.value : '';
     function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
     function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
 
-    setUint32(0x46464952); // "RIFF"
-    setUint32(length - 8); // file length - 8
-    setUint32(0x45564157); // "WAVE"
-    setUint32(0x20746d66); // "fmt " chunk
-    setUint32(16); // length = 16
-    setUint16(1); // PCM (uncompressed)
-    setUint16(numOfChan);
-    setUint32(buffer.sampleRate);
-    setUint32(buffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
-    setUint16(numOfChan * 2); // block-align
-    setUint16(16); // 16-bit
-    setUint32(0x61746164); // "data" - chunk
-    setUint32(length - pos - 4); // chunk length
+    setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157); setUint32(0x20746d66);
+    setUint32(16); setUint16(1); setUint16(numOfChan); setUint32(buffer.sampleRate);
+    setUint32(buffer.sampleRate * 2 * numOfChan); setUint16(numOfChan * 2); setUint16(16);
+    setUint32(0x61746164); setUint32(length - pos - 4);
 
     for (i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
 
     while (pos < length) {
       for (i = 0; i < numOfChan; i++) {
-        sample = Math.max(-1, Math.min(1, channels[i][offset])); // clamp
-        sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0; // scale to 16-bit signed int
-        view.setInt16(pos, sample, true);
-        pos += 2;
+        sample = Math.max(-1, Math.min(1, channels[i][offset])); 
+        sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0; 
+        view.setInt16(pos, sample, true); pos += 2;
       }
       offset++;
     }
     return new Blob([bufferArray], { type: 'audio/wav' });
   }
 
-
   // --- Unduh ---
   function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function () {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 1000);
+    var a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
   }
 
   async function downloadAllResults() {
     if (state.results.length === 1) {
-      var r = state.results[0];
-      downloadBlob(r.blob, r.filename);
-      saveToHistory(r);
-      return;
+      var r = state.results[0]; downloadBlob(r.blob, r.filename); saveToHistory(r); return;
     }
     
-    // Matikan tombol sementara agar tidak dobel klik
-    var btn = el['download-all'];
-    var originalText = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'Menyiapkan ZIP...';
+    var btn = el['download-all']; var originalText = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Menyiapkan ZIP...';
 
     try {
       await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', 'JSZip');
       var zip = new window.JSZip();
-
       state.results.forEach(function (result) { zip.file(result.filename, result.blob); });
-
       var content = await zip.generateAsync({ type: 'blob' });
       downloadBlob(content, 'AliRafqiStudio_BanyakFile.zip');
-
       state.results.forEach(function (r) { saveToHistory(r); });
-    } catch (e) {
-      console.error(e);
-      alert('Gagal membuat ZIP. Unduh file satu per satu.');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = originalText;
-    }
+    } catch (e) { alert('Gagal membuat ZIP. Unduh file satu per satu.'); } 
+    finally { btn.disabled = false; btn.textContent = originalText; }
   }
 
 })();
