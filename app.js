@@ -341,7 +341,9 @@
   async function submitAuthForm() {
     setFormLoading(true);
     setAuthMessage('');
-    var dName = el['display-name'].value.trim(), uname = el.username.value.toLowerCase(), pass = el.password.value;
+    var dName = el['display-name'] ? el['display-name'].value.trim() : '';
+var uname = el.username ? el.username.value.toLowerCase().replace(/\s/g, '') : '';
+var pass = el.password ? el.password.value : '';
 
     if (!uname || uname.length < 3) { finishAuthError(el.username, 'Nama pengguna minimal 3 karakter tanpa spasi.'); return; }
     if (!pass || pass.length < 5) { finishAuthError(el.password, 'Kata sandi terlalu pendek (minimal 5 karakter).'); return; }
