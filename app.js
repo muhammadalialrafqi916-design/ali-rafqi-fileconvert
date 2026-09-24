@@ -3,7 +3,7 @@
 
   var DB_NAME = 'AliRafqiFileStudio';
   var DB_VERSION = 1;
-  var PBKDF2_ITERATIONS = 600000;
+  var PBKDF2_ITERATIONS = 100000;
   var SESSION_DAYS = 45;
   var ACTIVE_SESSION_KEY = 'aliRafqiFileStudio.activeSession.v1';
   var THEME_KEY = 'aliRafqiFileStudio.theme.v1';
