@@ -1,14 +1,11 @@
 (function () {
   'use strict';
 
-  // --- PERUBAHAN PENTING DI SINI ---
-  var DB_NAME = 'AliRafqiStudio_V2'; // Nama DB diubah agar memaksa browser membuat database 100% baru
+  var DB_NAME = 'AliRafqiStudio_V2';
   var DB_VERSION = 1;
-  var PBKDF2_ITERATIONS = 10000; // Diturunkan drastis agar tidak membuat browser HP Hang/Crash
+  var PBKDF2_ITERATIONS = 10000;
   var SESSION_DAYS = 45;
   var ACTIVE_SESSION_KEY = 'aliRafqiFileStudio.activeSession.v2';
-  // ---------------------------------
-
   var THEME_KEY = 'aliRafqiFileStudio.theme.v1';
   var PDF_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   var MAX_FILE_SIZE = 80 * 1024 * 1024;
@@ -29,9 +26,9 @@
 
   var tools = {
     images: {
-      marker: 'GAMBAR', title: 'Ubah format gambar', description: 'Ubah JPG, PNG, atau WebP ke format pilihanmu.',
+      marker: 'GAMBAR', title: 'Ubah, Perkecil & Pangkas Gambar', description: 'Ubah format, perkecil ukuran (KB/MB), atau pangkas rasio gambar JPG, PNG, WebP.',
       dropTitle: 'Tarik gambar ke sini', requirements: 'atau pilih dari perangkat · JPG, PNG, WebP · maksimal 15 file',
-      accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp', extensions: ['jpg', 'jpeg', 'png', 'webp'], maxFiles: 15, runLabel: 'Ubah gambar'
+      accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp', extensions: ['jpg', 'jpeg', 'png', 'webp'], maxFiles: 15, runLabel: 'Proses Gambar'
     },
     'pdf-images': {
       marker: 'PDF → GAMBAR', title: 'PDF ke gambar', description: 'Render halaman PDF menjadi gambar PNG atau JPG.',
@@ -80,8 +77,7 @@
       'file-picker', 'drop-zone', 'drop-title', 'file-requirements', 'choose-files', 'selected-files', 'selected-file-count',
       'file-list', 'clear-files', 'active-tool-marker', 'workbench-title', 'workbench-description', 'conversion-options',
       'run-conversion', 'run-label', 'work-status', 'progress-wrap', 'progress-label', 'progress-value', 'progress-bar',
-      'results-section', 'result-list', 'download-all', 'image-quality', 'image-quality-output', 'history-dialog', 'history-list',
-      'clear-history', 'settings-dialog', 'pdf-pages'
+      'results-section', 'result-list', 'download-all', 'history-dialog', 'history-list', 'clear-history', 'settings-dialog'
     ].forEach(function (id) { el[id] = document.getElementById(id); });
   }
 
@@ -188,10 +184,6 @@
       setStatus('Menunggu file...');
     });
 
-    el['image-quality'].addEventListener('input', function () {
-      el['image-quality-output'].textContent = this.value + '%';
-    });
-
     el['run-conversion'].addEventListener('click', runConversion);
     el['open-history'].addEventListener('click', openHistory);
     document.querySelectorAll('[data-close-dialog]').forEach(function (button) {
@@ -213,7 +205,7 @@
     });
   }
 
-  // --- Utility Storage & Crypto ---
+  // --- Storage & Crypto Helpers ---
   function safeStorageGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
   function safeStorageSet(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
   function safeStorageRemove(key) { try { localStorage.removeItem(key); } catch (e) { } }
@@ -302,12 +294,10 @@
     el['auth-form'].classList.toggle('loading', isLoading);
   }
 
-  // --- LOGIKA FORM LOGIN DIPERBARUI ---
   async function submitAuthForm() {
     setFormLoading(true);
     setAuthMessage('');
-    
-    // Tarik data dengan aman agar tidak memicu error "Cannot read properties"
+
     var dNameEl = el['display-name'];
     var unameEl = el.username;
     var passEl = el.password;
@@ -339,7 +329,6 @@
       } else {
         var userRecord = await performDbTransaction('users', 'readonly', function (s) { return s.get(uname); });
         
-        // Pesan lebih jelas jika belum buat profil di database baru
         if (!userRecord) { 
           finishAuthError(null, 'Nama belum terdaftar. Klik "Buat profil" di bawah.'); 
           return; 
@@ -358,7 +347,6 @@
       }
     } catch (error) {
       console.error(error);
-      // Popup Alert ini ditambahkan agar kita tahu JIKA HP KAMU memblokir script
       alert("Terdapat error sistem di HP kamu: " + error.message); 
       setAuthMessage('Gagal masuk. Lihat pesan popup.');
       setFormLoading(false);
@@ -505,7 +493,7 @@
   }
 
 
-  // --- Manajemen Studio Utama ---
+  // --- DYNAMIC OPTION RENDERER (DENGAN FITUR RESIZE & CROP) ---
   function selectTool(toolName, skipClear) {
     if (state.processing) return;
     if (!tools[toolName]) toolName = 'images';
@@ -516,25 +504,101 @@
       btn.setAttribute('aria-pressed', btn.dataset.tool === toolName ? 'true' : 'false');
     });
 
-    el['active-tool-marker'].textContent = tool.marker; el['workbench-title'].textContent = tool.title;
-    el['workbench-description'].textContent = tool.description; el['drop-title'].textContent = tool.dropTitle;
-    el['file-requirements'].textContent = tool.requirements; el['file-picker'].accept = tool.accept;
+    el['active-tool-marker'].textContent = tool.marker; 
+    el['workbench-title'].textContent = tool.title;
+    el['workbench-description'].textContent = tool.description; 
+    el['drop-title'].textContent = tool.dropTitle;
+    el['file-requirements'].textContent = tool.requirements; 
+    el['file-picker'].accept = tool.accept;
     el['run-label'].textContent = tool.runLabel;
 
     el['conversion-options'].replaceChildren();
-    if (toolName === 'images' || toolName === 'pdf-images') {
-      var select = document.createElement('select'); select.id = 'dynamic-format-select';
-      select.style.marginBottom = '12px'; select.style.width = '100%';
-      var opts = toolName === 'images' ? ['jpg', 'png', 'webp'] : ['png', 'jpg'];
-      opts.forEach(function (f) {
-        var option = document.createElement('option'); option.value = f; option.textContent = 'Ubah ke ' + f.toUpperCase();
-        select.append(option);
-      });
-      el['conversion-options'].append(select); el['image-quality'].parentElement.hidden = false;
-    } else { el['image-quality'].parentElement.hidden = true; }
 
-    if (toolName === 'documents' || toolName === 'images-pdf' || toolName === 'merge-pdf') { el['pdf-pages'].parentElement.hidden = false; } 
-    else { el['pdf-pages'].parentElement.hidden = true; }
+    if (toolName === 'images') {
+      var group = document.createElement('div');
+      group.className = 'option-group';
+      group.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; width: 100%;';
+
+      // 1. Format Hasil
+      var lblFormat = document.createElement('label');
+      lblFormat.className = 'field compact';
+      lblFormat.innerHTML = '<span>Format hasil</span>';
+      var selectFormat = document.createElement('select');
+      selectFormat.id = 'dynamic-format-select';
+      selectFormat.innerHTML = '<option value="jpg">JPG — ukuran lebih ringan</option><option value="png">PNG — kualitas tajam</option><option value="webp">WebP — efisien & modern</option>';
+      lblFormat.appendChild(selectFormat);
+
+      // 2. Kualitas Kompresi (Ukuran KB/MB)
+      var lblQuality = document.createElement('label');
+      lblQuality.className = 'field compact';
+      lblQuality.innerHTML = '<span>Kualitas kompresi: <strong id="dynamic-quality-output">85%</strong></span>';
+      var inputQuality = document.createElement('input');
+      inputQuality.type = 'range';
+      inputQuality.id = 'dynamic-quality-input';
+      inputQuality.min = '10';
+      inputQuality.max = '100';
+      inputQuality.value = '85';
+      inputQuality.addEventListener('input', function() {
+        var out = document.getElementById('dynamic-quality-output');
+        if (out) out.textContent = this.value + '%';
+      });
+      lblQuality.appendChild(inputQuality);
+
+      // 3. Skala Dimensi (Perkecil Ukuran Piksel)
+      var lblScale = document.createElement('label');
+      lblScale.className = 'field compact';
+      lblScale.innerHTML = '<span>Skala dimensi (perkecil)</span>';
+      var selectScale = document.createElement('select');
+      selectScale.id = 'dynamic-scale-select';
+      selectScale.innerHTML = '<option value="1">100% (Ukuran Asli)</option><option value="0.75">75% (Sedang)</option><option value="0.5">50% (Separuh Piksel)</option><option value="0.25">25% (Kecil - Sangat Ringan)</option>';
+      lblScale.appendChild(selectScale);
+
+      // 4. Pangkas Gambar (Crop Rasio)
+      var lblCrop = document.label = document.createElement('label');
+      lblCrop.className = 'field compact';
+      lblCrop.innerHTML = '<span>Pangkas rasio (Crop)</span>';
+      var selectCrop = document.createElement('select');
+      selectCrop.id = 'dynamic-crop-select';
+      selectCrop.innerHTML = '<option value="none">Tanpa Pangkas (Utuh)</option><option value="1:1">1:1 — Persegi (Foto Profil)</option><option value="16:9">16:9 — Lansekap (Layar Lebar)</option><option value="4:3">4:3 — Standar</option><option value="3:4">3:4 — Potret</option>';
+      lblCrop.appendChild(selectCrop);
+
+      group.appendChild(lblFormat);
+      group.appendChild(lblQuality);
+      group.appendChild(lblScale);
+      group.appendChild(lblCrop);
+      el['conversion-options'].appendChild(group);
+
+    } else if (toolName === 'pdf-images') {
+      var groupPdf = document.createElement('div');
+      groupPdf.className = 'option-group';
+      groupPdf.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; width: 100%;';
+
+      var lblPdfFmt = document.createElement('label');
+      lblPdfFmt.className = 'field compact';
+      lblPdfFmt.innerHTML = '<span>Format hasil</span>';
+      var selectPdfFmt = document.createElement('select');
+      selectPdfFmt.id = 'dynamic-format-select';
+      selectPdfFmt.innerHTML = '<option value="png">PNG — tajam</option><option value="jpg">JPG — lebih ringan</option>';
+      lblPdfFmt.appendChild(selectPdfFmt);
+
+      groupPdf.appendChild(lblPdfFmt);
+      el['conversion-options'].appendChild(groupPdf);
+
+    } else if (toolName === 'documents' || toolName === 'images-pdf' || toolName === 'merge-pdf') {
+      var noteDiv = document.createElement('div');
+      noteDiv.className = 'option-group note-options';
+      noteDiv.innerHTML = '<span>ℹ</span><p>' + 
+        (toolName === 'documents' ? 'TXT dipindahkan ke PDF. DOCX diekstrak sebagai teks sederhana.' : 
+        (toolName === 'images-pdf' ? 'Pilih beberapa gambar untuk disusun menjadi satu file PDF.' : 
+        'Urutan PDF mengikuti daftar file di atas. Pilih beberapa file PDF lalu gabungkan.')) + 
+        '</p>';
+      el['conversion-options'].appendChild(noteDiv);
+    } else if (toolName === 'video-audio') {
+      var noteAud = document.createElement('div');
+      noteAud.className = 'option-group note-options';
+      noteAud.innerHTML = '<span>ℹ</span><p>Audio akan diekstrak langsung dari file MP4 Anda menjadi file audio WAV murni tanpa server.</p>';
+      el['conversion-options'].appendChild(noteAud);
+    }
 
     if (!skipClear) { clearFiles(); clearResults(); setStatus('Menunggu file...'); } 
     else { validateFilesAgainstTool(); }
@@ -586,7 +650,6 @@
 
   function clearFiles() { state.files = []; renderFiles(); }
 
-  // --- Logika Pratinjau Memory-Safe ---
   function clearResults() {
     if (state.results && state.results.length) {
       state.results.forEach(function(r) { if (r.previewUrl) { URL.revokeObjectURL(r.previewUrl); } });
@@ -616,9 +679,6 @@
       } else if (type.startsWith('audio/')) {
         var audio = document.createElement('audio'); audio.controls = true; audio.src = result.previewUrl; audio.style.cssText = 'width: 100%; margin: 15px;';
         previewBox.append(audio);
-      } else if (type.startsWith('video/')) {
-        var video = document.createElement('video'); video.controls = true; video.src = result.previewUrl; video.style.cssText = 'max-width: 100%; max-height: 300px; display: block;';
-        previewBox.append(video);
       } else {
         var fallback = document.createElement('div'); fallback.style.padding = '20px'; fallback.style.color = 'var(--text-secondary)'; fallback.textContent = 'Pratinjau tidak tersedia';
         previewBox.append(fallback);
@@ -662,24 +722,34 @@
     if (label) el['progress-label'].textContent = label;
   }
 
-  // --- CORE CONVERSION ENGINE ---
+  // --- ENGINE PROCESSOR UTAMA ---
   async function runConversion() {
     if (state.processing || !state.files.length) return;
     setProcessing(true, 'Menyiapkan mesin...');
     state.lastFailures = [];
 
-    var tool = state.selectedTool; var outputs = [];
-    var quality = parseInt(el['image-quality'].value, 10) / 100;
-    var pdfFormatSelect = document.getElementById('dynamic-format-select');
-    var targetFormat = pdfFormatSelect ? pdfFormatSelect.value : 'png';
-    var pdfFormatType = targetFormat === 'jpg' ? 'image/jpeg' : 'image/png';
+    var tool = state.selectedTool; 
+    var outputs = [];
 
     try {
       if (tool === 'images') {
+        var fmtEl = document.getElementById('dynamic-format-select');
+        var qualityEl = document.getElementById('dynamic-quality-input');
+        var scaleEl = document.getElementById('dynamic-scale-select');
+        var cropEl = document.getElementById('dynamic-crop-select');
+
+        var targetFormat = fmtEl ? fmtEl.value : 'jpg';
+        var quality = qualityEl ? parseInt(qualityEl.value, 10) / 100 : 0.85;
+        var scale = scaleEl ? parseFloat(scaleEl.value) : 1.0;
+        var cropRatio = cropEl ? cropEl.value : 'none';
+
         for (var i = 0; i < state.files.length; i++) {
           updateProgress((i / state.files.length) * 100, 'Memproses ' + (i + 1) + '/' + state.files.length);
-          try { outputs.push(await convertImageFormat(state.files[i], targetFormat, quality)); } 
-          catch (e) { state.lastFailures.push({ file: state.files[i].name, error: e.message }); }
+          try { 
+            outputs.push(await convertImageFormat(state.files[i], targetFormat, quality, scale, cropRatio)); 
+          } catch (e) { 
+            state.lastFailures.push({ file: state.files[i].name, error: e.message }); 
+          }
         }
       } else if (tool === 'images-pdf') {
         updateProgress(10, 'Memuat library PDF...');
@@ -698,13 +768,17 @@
         await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', 'PDFLib');
         outputs.push(await mergePdfs(state.files));
       } else if (tool === 'pdf-images') {
+        var pdfFmtEl = document.getElementById('dynamic-format-select');
+        var targetPdfFmt = pdfFmtEl ? pdfFmtEl.value : 'png';
+        var mimeType = targetPdfFmt === 'jpg' ? 'image/jpeg' : 'image/png';
+
         updateProgress(5, 'Menyiapkan mesin PDF...');
         await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'pdfjsLib');
         configurePdfWorker();
         for (var k = 0; k < state.files.length; k++) {
           updateProgress(10 + ((k / state.files.length) * 80), 'Mengekstrak PDF ' + (k + 1));
           try {
-            var extracted = await extractPdfToImages(state.files[k], pdfFormatType, targetFormat, quality);
+            var extracted = await extractPdfToImages(state.files[k], mimeType, targetPdfFmt, 0.9);
             outputs = outputs.concat(extracted);
           } catch (e) { state.lastFailures.push({ file: state.files[k].name, error: e.message }); }
         }
@@ -725,7 +799,72 @@
     finally { setProcessing(false); }
   }
 
-  // --- Alat: Manipulasi DOM/Canvas/Binary ---
+  // --- FUNGSI PROSESOR GAMBAR (CROP & RESIZE & KOMPRESI) ---
+  async function convertImageFormat(file, format, quality, scale, cropRatio) {
+    scale = scale || 1.0;
+    cropRatio = cropRatio || 'none';
+
+    var dataUrl = await readFileAsDataUrl(file);
+    var img = await loadImageFromUrl(dataUrl);
+    if (img.width * img.height > MAX_IMAGE_PIXELS) throw new Error('Resolusi gambar terlalu besar. Maks 40MP.');
+
+    // 1. Pangkas Area Tengah (Center Crop) sesuai rasio
+    var startX = 0;
+    var startY = 0;
+    var cropWidth = img.width;
+    var cropHeight = img.height;
+
+    if (cropRatio !== 'none') {
+      var targetRatio = 1;
+      if (cropRatio === '1:1') targetRatio = 1;
+      else if (cropRatio === '16:9') targetRatio = 16 / 9;
+      else if (cropRatio === '4:3') targetRatio = 4 / 3;
+      else if (cropRatio === '3:4') targetRatio = 3 / 4;
+
+      var currentRatio = img.width / img.height;
+      if (currentRatio > targetRatio) {
+        cropHeight = img.height;
+        cropWidth = cropHeight * targetRatio;
+        startX = (img.width - cropWidth) / 2;
+      } else {
+        cropWidth = img.width;
+        cropHeight = cropWidth / targetRatio;
+        startY = (img.height - cropHeight) / 2;
+      }
+    }
+
+    // 2. Perkecil Dimensi Piksel sesuai skala
+    var finalWidth = Math.round(cropWidth * scale);
+    var finalHeight = Math.round(cropHeight * scale);
+
+    var canvas = document.createElement('canvas');
+    canvas.width = finalWidth;
+    canvas.height = finalHeight;
+    var ctx = canvas.getContext('2d');
+
+    if (format === 'jpg') {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Gambar ulang ke Canvas (Pemotongan & Skala)
+    ctx.drawImage(
+      img,
+      startX, startY, cropWidth, cropHeight,
+      0, 0, finalWidth, finalHeight
+    );
+
+    return new Promise(function (resolve, reject) {
+      var mime = format === 'jpg' ? 'image/jpeg' : (format === 'webp' ? 'image/webp' : 'image/png');
+      canvas.toBlob(function (blob) {
+        if (!blob) return reject(new Error('Canvas toBlob gagal'));
+        var baseName = file.name.substring(0, file.name.lastIndexOf('.')) || 'gambar';
+        resolve({ blob: blob, filename: baseName + '_studio.' + format, sourceName: file.name });
+      }, mime, quality);
+    });
+  }
+
+  // --- HELPER DOKUMEN & LAINNYA ---
   async function loadLibrary(url, globalObjName) {
     if (window[globalObjName]) return;
     return new Promise(function (resolve, reject) {
@@ -756,30 +895,9 @@
     });
   }
 
-  async function convertImageFormat(file, format, quality) {
-    var dataUrl = await readFileAsDataUrl(file);
-    var img = await loadImageFromUrl(dataUrl);
-    if (img.width * img.height > MAX_IMAGE_PIXELS) throw new Error('Resolusi gambar terlalu besar. Maks 40MP.');
-
-    var canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
-    var ctx = canvas.getContext('2d');
-    if (format === 'jpg') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-    ctx.drawImage(img, 0, 0);
-
-    return new Promise(function (resolve, reject) {
-      var mime = format === 'jpg' ? 'image/jpeg' : (format === 'webp' ? 'image/webp' : 'image/png');
-      canvas.toBlob(function (blob) {
-        if (!blob) return reject(new Error('Canvas toBlob gagal'));
-        var baseName = file.name.substring(0, file.name.lastIndexOf('.')) || 'gambar';
-        resolve({ blob: blob, filename: baseName + '_studio.' + format, sourceName: file.name });
-      }, mime, quality);
-    });
-  }
-
   async function convertImagesToPdf(files) {
     var doc = new window.jspdf.jsPDF({ orientation: 'p', unit: 'px', format: 'a4' });
     var docWidth = doc.internal.pageSize.getWidth(), docHeight = doc.internal.pageSize.getHeight();
-    var pageFormat = el['pdf-pages'].value;
 
     for (var i = 0; i < files.length; i++) {
       if (i > 0) doc.addPage();
@@ -790,13 +908,9 @@
       var ratio = img.width / img.height;
       var finalW, finalH, x = 0, y = 0;
 
-      if (pageFormat === 'fit') {
-        if (ratio > docWidth / docHeight) { finalW = docWidth; finalH = docWidth / ratio; y = (docHeight - finalH) / 2; } 
-        else { finalH = docHeight; finalW = docHeight * ratio; x = (docWidth - finalW) / 2; }
-      } else { 
-        if (ratio > docWidth / docHeight) { finalH = docHeight; finalW = docHeight * ratio; x = (docWidth - finalW) / 2; } 
-        else { finalW = docWidth; finalH = docWidth / ratio; y = (docHeight - finalH) / 2; }
-      }
+      if (ratio > docWidth / docHeight) { finalW = docWidth; finalH = docWidth / ratio; y = (docHeight - finalH) / 2; } 
+      else { finalH = docHeight; finalW = docHeight * ratio; x = (docWidth - finalW) / 2; }
+
       doc.addImage(img, 'JPEG', x, y, finalW, finalH, undefined, 'FAST');
     }
 
@@ -902,7 +1016,7 @@
     return new Blob([bufferArray], { type: 'audio/wav' });
   }
 
-  // --- Unduh ---
+  // --- UNDUH ---
   function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a'); a.href = url; a.download = filename;
