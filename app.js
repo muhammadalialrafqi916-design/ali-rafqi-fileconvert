@@ -41,7 +41,7 @@
       accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp', extensions: ['jpg', 'jpeg', 'png', 'webp'], maxFiles: 15, runLabel: 'Buat PDF'
     },
     documents: {
-      marker: 'DOKUMEN → PDF', title: 'Dokumen teks ke PDF', description: 'Ekspor isi TXT atau DOCX sederhana menjadi PDF.',
+      marker: 'DOKUMEN → PDF', title: 'Dokumen teks ke PDF', description: 'Ekspor isi TXT atau DOCX (Word) menjadi PDF.',
       dropTitle: 'Tarik dokumen ke sini', requirements: 'atau pilih dari perangkat · TXT, DOCX · maksimal 5 file',
       accept: 'text/plain,.txt,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document', extensions: ['txt', 'docx'], maxFiles: 5, runLabel: 'Buat PDF dokumen'
     },
@@ -54,6 +54,11 @@
       marker: 'VIDEO → AUDIO', title: 'Video ke Audio', description: 'Ekstrak suara dari MP4 menjadi format Audio (WAV) murni tanpa server.',
       dropTitle: 'Tarik video MP4 ke sini', requirements: 'atau pilih dari perangkat · MP4 · maksimal 5 file',
       accept: 'video/mp4,.mp4', extensions: ['mp4'], maxFiles: 5, runLabel: 'Ekstrak Audio WAV'
+    },
+    'crop-video': {
+      marker: 'PANGKAS VIDEO', title: 'Pangkas Area Video (Crop)', description: 'Potong area/resolusi tampilan video MP4 atau WebM sesuai koordinat piksel.',
+      dropTitle: 'Tarik video ke sini', requirements: 'atau pilih dari perangkat · MP4, WebM · maksimal 2 file',
+      accept: 'video/mp4,video/webm,.mp4,.webm', extensions: ['mp4', 'webm'], maxFiles: 2, runLabel: 'Pangkas Video'
     }
   };
 
@@ -493,7 +498,7 @@
   }
 
 
-  // --- DYNAMIC OPTION RENDERER (DENGAN FITUR RESIZE & CROP) ---
+  // --- DYNAMIC OPTION RENDERER ---
   function selectTool(toolName, skipClear) {
     if (state.processing) return;
     if (!tools[toolName]) toolName = 'images';
@@ -554,7 +559,7 @@
       lblScale.appendChild(selectScale);
 
       // 4. Pangkas Gambar (Crop Rasio)
-      var lblCrop = document.label = document.createElement('label');
+      var lblCrop = document.createElement('label');
       lblCrop.className = 'field compact';
       lblCrop.innerHTML = '<span>Pangkas rasio (Crop)</span>';
       var selectCrop = document.createElement('select');
@@ -588,16 +593,53 @@
       var noteDiv = document.createElement('div');
       noteDiv.className = 'option-group note-options';
       noteDiv.innerHTML = '<span>ℹ</span><p>' + 
-        (toolName === 'documents' ? 'TXT dipindahkan ke PDF. DOCX diekstrak sebagai teks sederhana.' : 
+        (toolName === 'documents' ? 'Format yang didukung: TXT dan DOCX (Word). Hasil akan berupa dokumen PDF.' : 
         (toolName === 'images-pdf' ? 'Pilih beberapa gambar untuk disusun menjadi satu file PDF.' : 
         'Urutan PDF mengikuti daftar file di atas. Pilih beberapa file PDF lalu gabungkan.')) + 
         '</p>';
       el['conversion-options'].appendChild(noteDiv);
+
     } else if (toolName === 'video-audio') {
       var noteAud = document.createElement('div');
       noteAud.className = 'option-group note-options';
       noteAud.innerHTML = '<span>ℹ</span><p>Audio akan diekstrak langsung dari file MP4 Anda menjadi file audio WAV murni tanpa server.</p>';
       el['conversion-options'].appendChild(noteAud);
+
+    } else if (toolName === 'crop-video') {
+      var cropGroup = document.createElement('div');
+      cropGroup.className = 'option-group';
+      cropGroup.style.cssText = 'width: 100%; display: flex; flex-direction: column; gap: 10px;';
+
+      var lblCropInfo = document.createElement('span');
+      lblCropInfo.style.fontWeight = 'bold';
+      lblCropInfo.textContent = 'Pengaturan Pemotongan Area Video (Piksel):';
+      cropGroup.appendChild(lblCropInfo);
+
+      var gridCrop = document.createElement('div');
+      gridCrop.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;';
+
+      var cropInputs = [
+        { id: 'cropX', label: 'Posisi AWAL X (px):', default: '0' },
+        { id: 'cropY', label: 'Posisi AWAL Y (px):', default: '0' },
+        { id: 'cropW', label: 'LEBAR Hasil (px):', default: '1280' },
+        { id: 'cropH', label: 'TINGGI Hasil (px):', default: '720' }
+      ];
+
+      cropInputs.forEach(function (inp) {
+        var wrapper = document.createElement('label');
+        wrapper.className = 'field compact';
+        wrapper.innerHTML = '<span>' + inp.label + '</span>';
+        var input = document.createElement('input');
+        input.type = 'number';
+        input.id = inp.id;
+        input.value = inp.default;
+        input.min = '0';
+        wrapper.appendChild(input);
+        gridCrop.appendChild(wrapper);
+      });
+
+      cropGroup.appendChild(gridCrop);
+      el['conversion-options'].appendChild(cropGroup);
     }
 
     if (!skipClear) { clearFiles(); clearResults(); setStatus('Menunggu file...'); } 
@@ -679,6 +721,9 @@
       } else if (type.startsWith('audio/')) {
         var audio = document.createElement('audio'); audio.controls = true; audio.src = result.previewUrl; audio.style.cssText = 'width: 100%; margin: 15px;';
         previewBox.append(audio);
+      } else if (type.startsWith('video/')) {
+        var video = document.createElement('video'); video.controls = true; video.src = result.previewUrl; video.style.cssText = 'max-width: 100%; max-height: 300px; display: block;';
+        previewBox.append(video);
       } else {
         var fallback = document.createElement('div'); fallback.style.padding = '20px'; fallback.style.color = 'var(--text-secondary)'; fallback.textContent = 'Pratinjau tidak tersedia';
         previewBox.append(fallback);
@@ -756,8 +801,9 @@
         await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
         outputs.push(await convertImagesToPdf(state.files));
       } else if (tool === 'documents') {
-        updateProgress(10, 'Memuat library PDF...');
+        updateProgress(10, 'Memuat library PDF & DOCX...');
         await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js', 'mammoth');
         for (var j = 0; j < state.files.length; j++) {
           updateProgress(10 + ((j / state.files.length) * 80), 'Merender dokumen ' + (j + 1));
           try { outputs.push(await convertDocumentToPdf(state.files[j])); } 
@@ -788,6 +834,22 @@
           updateProgress(5 + ((v / state.files.length) * 90), 'Memproses video ' + (v + 1));
           try { outputs.push(await extractAudioFromVideo(state.files[v])); } 
           catch (e) { state.lastFailures.push({ file: state.files[v].name, error: e.message }); }
+        }
+      } else if (tool === 'crop-video') {
+        var cropXEl = document.getElementById('cropX');
+        var cropYEl = document.getElementById('cropY');
+        var cropWEl = document.getElementById('cropW');
+        var cropHEl = document.getElementById('cropH');
+
+        var cX = cropXEl ? parseInt(cropXEl.value, 10) || 0 : 0;
+        var cY = cropYEl ? parseInt(cropYEl.value, 10) || 0 : 0;
+        var cW = cropWEl ? parseInt(cropWEl.value, 10) || 1280 : 1280;
+        var cH = cropHEl ? parseInt(cropHEl.value, 10) || 720 : 720;
+
+        for (var cv = 0; cv < state.files.length; cv++) {
+          updateProgress(5 + ((cv / state.files.length) * 90), 'Memotong area video ' + (cv + 1));
+          try { outputs.push(await cropVideo(state.files[cv], cX, cY, cW, cH)); } 
+          catch (e) { state.lastFailures.push({ file: state.files[cv].name, error: e.message }); }
         }
       }
 
@@ -847,7 +909,6 @@
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // Gambar ulang ke Canvas (Pemotongan & Skala)
     ctx.drawImage(
       img,
       startX, startY, cropWidth, cropHeight,
@@ -866,7 +927,7 @@
 
   // --- HELPER DOKUMEN & LAINNYA ---
   async function loadLibrary(url, globalObjName) {
-    if (window[globalObjName]) return;
+    if (window[globalObjName] || (globalObjName === 'jspdf' && window.jspdf)) return;
     return new Promise(function (resolve, reject) {
       var script = document.createElement('script'); script.src = url; script.onload = resolve;
       script.onerror = function () { reject(new Error('Gagal memuat ' + globalObjName)); };
@@ -918,15 +979,32 @@
   }
 
   async function convertDocumentToPdf(file) {
-    if (!file.name.toLowerCase().endsWith('.txt')) throw new Error('Saat ini hanya mendukung TXT.');
-    var text = await file.text();
-    var doc = new window.jspdf.jsPDF();
-    var lines = doc.splitTextToSize(text, 180);
+    var ext = file.name.split('.').pop().toLowerCase();
+    var text = '';
+
+    if (ext === 'txt') {
+      text = await file.text();
+    } else if (ext === 'docx') {
+      if (!window.mammoth) throw new Error('Library Mammoth belum dimuat.');
+      var arrayBuffer = await readFileAsArrayBuffer(file);
+      var result = await window.mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+      text = result.value;
+    } else {
+      throw new Error('Format dokumen "' + ext + '" tidak didukung. Gunakan file TXT atau DOCX.');
+    }
+
+    var jsPDF = window.jspdf ? window.jspdf.jsPDF : window.jsPDF;
+    var doc = new jsPDF();
+    var lines = doc.splitTextToSize(text || ' ', 180);
     var cursorY = 20;
 
     for (var i = 0; i < lines.length; i++) {
-      if (cursorY > 280) { doc.addPage(); cursorY = 20; }
-      doc.text(lines[i], 15, cursorY); cursorY += 7;
+      if (cursorY > 280) {
+        doc.addPage();
+        cursorY = 20;
+      }
+      doc.text(lines[i], 15, cursorY);
+      cursorY += 7;
     }
 
     var baseName = file.name.substring(0, file.name.lastIndexOf('.'));
@@ -987,6 +1065,86 @@
       };
       reader.onerror = function () { reject(new Error('Gagal membaca file video.')); };
       reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function cropVideo(file, cropX, cropY, cropWidth, cropHeight) {
+    return new Promise(function (resolve, reject) {
+      var video = document.createElement('video');
+      video.src = URL.createObjectURL(file);
+      video.muted = true;
+      video.playsInline = true;
+
+      video.onloadedmetadata = function () {
+        var startX = Math.max(0, cropX || 0);
+        var startY = Math.max(0, cropY || 0);
+        var targetW = Math.min(cropWidth || video.videoWidth, video.videoWidth - startX);
+        var targetH = Math.min(cropHeight || video.videoHeight, video.videoHeight - startY);
+
+        if (targetW <= 0 || targetH <= 0) {
+          URL.revokeObjectURL(video.src);
+          return reject(new Error('Ukuran pangkas tidak valid atau melebihi resolusi video.'));
+        }
+
+        var canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        var ctx = canvas.getContext('2d');
+
+        var stream = canvas.captureStream(30);
+        var recorderOptions = { mimeType: 'video/webm' };
+
+        if (!MediaRecorder.isTypeSupported('video/webm')) {
+          recorderOptions = { mimeType: 'video/mp4' };
+        }
+
+        var mediaRecorder;
+        try {
+          mediaRecorder = new MediaRecorder(stream, recorderOptions);
+        } catch (e) {
+          mediaRecorder = new MediaRecorder(stream);
+        }
+
+        var chunks = [];
+        mediaRecorder.ondataavailable = function (e) {
+          if (e.data && e.data.size > 0) chunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = function () {
+          var blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'video/webm' });
+          var ext = (mediaRecorder.mimeType && mediaRecorder.mimeType.includes('mp4')) ? '.mp4' : '.webm';
+          var baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+          URL.revokeObjectURL(video.src);
+          resolve({
+            blob: blob,
+            filename: baseName + '_cropped' + ext,
+            sourceName: file.name
+          });
+        };
+
+        video.play().then(function () {
+          mediaRecorder.start();
+
+          function renderFrame() {
+            if (video.paused || video.ended) {
+              if (mediaRecorder.state === 'recording') mediaRecorder.stop();
+              return;
+            }
+            ctx.drawImage(video, startX, startY, targetW, targetH, 0, 0, targetW, targetH);
+            requestAnimationFrame(renderFrame);
+          }
+
+          renderFrame();
+        }).catch(function (err) {
+          URL.revokeObjectURL(video.src);
+          reject(err);
+        });
+      };
+
+      video.onerror = function () {
+        URL.revokeObjectURL(video.src);
+        reject(new Error('Gagal memuat file video. Format mungkin tidak didukung.'));
+      };
     });
   }
 
