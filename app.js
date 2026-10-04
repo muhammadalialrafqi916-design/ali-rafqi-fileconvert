@@ -56,9 +56,9 @@
       accept: 'video/mp4,.mp4', extensions: ['mp4'], maxFiles: 5, runLabel: 'Ekstrak Audio WAV'
     },
     'crop-video': {
-      marker: 'PANGKAS VIDEO', title: 'Pangkas Area Video (Crop)', description: 'Potong area/resolusi tampilan video MP4 atau WebM sesuai koordinat piksel.',
+      marker: 'KOMPRES & PANGKAS VIDEO', title: 'Perkecil Ukuran (MB) & Pangkas Video', description: 'Kurangi ukuran file video dengan menurunkan bitrate (kualitas) atau potong area bingkainya.',
       dropTitle: 'Tarik video ke sini', requirements: 'atau pilih dari perangkat · MP4, WebM · maksimal 2 file',
-      accept: 'video/mp4,video/webm,.mp4,.webm', extensions: ['mp4', 'webm'], maxFiles: 2, runLabel: 'Pangkas Video'
+      accept: 'video/mp4,video/webm,.mp4,.webm', extensions: ['mp4', 'webm'], maxFiles: 2, runLabel: 'Proses Video'
     }
   };
 
@@ -610,9 +610,26 @@
       cropGroup.className = 'option-group';
       cropGroup.style.cssText = 'width: 100%; display: flex; flex-direction: column; gap: 10px;';
 
+      // --- BAGIAN KOMPRESI UKURAN VIDEO (BARU) ---
+      var lblBitrateInfo = document.createElement('span');
+      lblBitrateInfo.style.fontWeight = 'bold';
+      lblBitrateInfo.textContent = 'Pengaturan Kompresi (Untuk mengurangi MB):';
+      cropGroup.appendChild(lblBitrateInfo);
+
+      var bitrateWrapper = document.createElement('label');
+      bitrateWrapper.className = 'field compact';
+      bitrateWrapper.innerHTML = '<span>Kualitas Video (Bitrate):</span>';
+      var bitrateSelect = document.createElement('select');
+      bitrateSelect.id = 'videoBitrate';
+      bitrateSelect.innerHTML = '<option value="">Otomatis (Bawaan)</option><option value="5000000">Tinggi (5 Mbps) - Kualitas Cukup Baik</option><option value="2500000">Sedang (2.5 Mbps) - Standar/Menengah</option><option value="1000000">Rendah (1 Mbps) - Ukuran Kecil</option><option value="500000">Sangat Rendah (500 Kbps) - Sangat Ringan</option>';
+      bitrateWrapper.appendChild(bitrateSelect);
+      cropGroup.appendChild(bitrateWrapper);
+
+      // --- BAGIAN POTONG / CROP BINGKAI VIDEO ---
       var lblCropInfo = document.createElement('span');
       lblCropInfo.style.fontWeight = 'bold';
-      lblCropInfo.textContent = 'Pengaturan Pemotongan Area Video (Piksel):';
+      lblCropInfo.style.marginTop = '10px';
+      lblCropInfo.textContent = 'Pengaturan Potong Area/Bingkai (Kosongkan Lebar/Tinggi untuk membiarkan bentuk aslinya):';
       cropGroup.appendChild(lblCropInfo);
 
       var gridCrop = document.createElement('div');
@@ -621,8 +638,8 @@
       var cropInputs = [
         { id: 'cropX', label: 'Posisi AWAL X (px):', default: '0' },
         { id: 'cropY', label: 'Posisi AWAL Y (px):', default: '0' },
-        { id: 'cropW', label: 'LEBAR Hasil (px):', default: '1280' },
-        { id: 'cropH', label: 'TINGGI Hasil (px):', default: '720' }
+        { id: 'cropW', label: 'LEBAR Hasil (px):', default: '' },
+        { id: 'cropH', label: 'TINGGI Hasil (px):', default: '' }
       ];
 
       cropInputs.forEach(function (inp) {
@@ -840,15 +857,17 @@
         var cropYEl = document.getElementById('cropY');
         var cropWEl = document.getElementById('cropW');
         var cropHEl = document.getElementById('cropH');
+        var bitrateEl = document.getElementById('videoBitrate');
 
-        var cX = cropXEl ? parseInt(cropXEl.value, 10) || 0 : 0;
-        var cY = cropYEl ? parseInt(cropYEl.value, 10) || 0 : 0;
-        var cW = cropWEl ? parseInt(cropWEl.value, 10) || 1280 : 1280;
-        var cH = cropHEl ? parseInt(cropHEl.value, 10) || 720 : 720;
+        var cX = cropXEl && cropXEl.value ? parseInt(cropXEl.value, 10) : 0;
+        var cY = cropYEl && cropYEl.value ? parseInt(cropYEl.value, 10) : 0;
+        var cW = cropWEl && cropWEl.value ? parseInt(cropWEl.value, 10) : 0;
+        var cH = cropHEl && cropHEl.value ? parseInt(cropHEl.value, 10) : 0;
+        var bitrate = bitrateEl && bitrateEl.value ? parseInt(bitrateEl.value, 10) : null;
 
         for (var cv = 0; cv < state.files.length; cv++) {
-          updateProgress(5 + ((cv / state.files.length) * 90), 'Memotong area video ' + (cv + 1));
-          try { outputs.push(await cropVideo(state.files[cv], cX, cY, cW, cH)); } 
+          updateProgress(5 + ((cv / state.files.length) * 90), 'Memproses video ' + (cv + 1));
+          try { outputs.push(await cropVideo(state.files[cv], cX, cY, cW, cH, bitrate)); } 
           catch (e) { state.lastFailures.push({ file: state.files[cv].name, error: e.message }); }
         }
       }
@@ -1068,7 +1087,7 @@
     });
   }
 
-  async function cropVideo(file, cropX, cropY, cropWidth, cropHeight) {
+  async function cropVideo(file, cropX, cropY, cropWidth, cropHeight, bitrate) {
     return new Promise(function (resolve, reject) {
       var video = document.createElement('video');
       video.src = URL.createObjectURL(file);
@@ -1078,8 +1097,10 @@
       video.onloadedmetadata = function () {
         var startX = Math.max(0, cropX || 0);
         var startY = Math.max(0, cropY || 0);
-        var targetW = Math.min(cropWidth || video.videoWidth, video.videoWidth - startX);
-        var targetH = Math.min(cropHeight || video.videoHeight, video.videoHeight - startY);
+        
+        // Jika cropWidth atau cropHeight kosong (0), ikuti lebar aslinya untuk menghindari bingkai kepotong
+        var targetW = cropWidth ? Math.min(cropWidth, video.videoWidth - startX) : video.videoWidth - startX;
+        var targetH = cropHeight ? Math.min(cropHeight, video.videoHeight - startY) : video.videoHeight - startY;
 
         if (targetW <= 0 || targetH <= 0) {
           URL.revokeObjectURL(video.src);
@@ -1092,16 +1113,21 @@
         var ctx = canvas.getContext('2d');
 
         var stream = canvas.captureStream(30);
+        
+        // --- MENERAPKAN BITRATE KE RECORDER OPSI ---
         var recorderOptions = { mimeType: 'video/webm' };
+        if (bitrate) recorderOptions.videoBitsPerSecond = bitrate;
 
         if (!MediaRecorder.isTypeSupported('video/webm')) {
           recorderOptions = { mimeType: 'video/mp4' };
+          if (bitrate) recorderOptions.videoBitsPerSecond = bitrate;
         }
 
         var mediaRecorder;
         try {
           mediaRecorder = new MediaRecorder(stream, recorderOptions);
         } catch (e) {
+          // Fallback apabila bitrate ditolak oleh device Anda
           mediaRecorder = new MediaRecorder(stream);
         }
 
@@ -1117,7 +1143,7 @@
           URL.revokeObjectURL(video.src);
           resolve({
             blob: blob,
-            filename: baseName + '_cropped' + ext,
+            filename: baseName + '_compressed' + ext,
             sourceName: file.name
           });
         };
