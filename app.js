@@ -210,7 +210,7 @@
     });
   }
 
-  // --- Storage & Crypto Helpers ---
+  
   function safeStorageGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
   function safeStorageSet(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
   function safeStorageRemove(key) { try { localStorage.removeItem(key); } catch (e) { } }
@@ -432,7 +432,6 @@
     } catch (error) { alert('Tidak dapat menghapus data.'); }
   }
 
-  // --- Manajemen Riwayat ---
   async function saveToHistory(resultData) {
     if (!state.currentUser) return;
     try {
@@ -498,7 +497,6 @@
   }
 
 
-  // --- DYNAMIC OPTION RENDERER ---
   function selectTool(toolName, skipClear) {
     if (state.processing) return;
     if (!tools[toolName]) toolName = 'images';
@@ -549,7 +547,7 @@
       });
       lblQuality.appendChild(inputQuality);
 
-      // 3. Skala Dimensi (Perkecil Ukuran Piksel)
+     
       var lblScale = document.createElement('label');
       lblScale.className = 'field compact';
       lblScale.innerHTML = '<span>Skala dimensi (perkecil)</span>';
@@ -558,7 +556,6 @@
       selectScale.innerHTML = '<option value="1">100% (Ukuran Asli)</option><option value="0.75">75% (Sedang)</option><option value="0.5">50% (Separuh Piksel)</option><option value="0.25">25% (Kecil - Sangat Ringan)</option>';
       lblScale.appendChild(selectScale);
 
-      // 4. Pangkas Gambar (Crop Rasio)
       var lblCrop = document.createElement('label');
       lblCrop.className = 'field compact';
       lblCrop.innerHTML = '<span>Pangkas rasio (Crop)</span>';
@@ -610,7 +607,7 @@
       cropGroup.className = 'option-group';
       cropGroup.style.cssText = 'width: 100%; display: flex; flex-direction: column; gap: 10px;';
 
-      // --- BAGIAN KOMPRESI UKURAN VIDEO (BARU) ---
+      
       var lblBitrateInfo = document.createElement('span');
       lblBitrateInfo.style.fontWeight = 'bold';
       lblBitrateInfo.textContent = 'Pengaturan Kompresi (Untuk mengurangi MB):';
@@ -625,7 +622,6 @@
       bitrateWrapper.appendChild(bitrateSelect);
       cropGroup.appendChild(bitrateWrapper);
 
-      // --- BAGIAN POTONG / CROP BINGKAI VIDEO ---
       var lblCropInfo = document.createElement('span');
       lblCropInfo.style.fontWeight = 'bold';
       lblCropInfo.style.marginTop = '10px';
@@ -880,7 +876,6 @@
     finally { setProcessing(false); }
   }
 
-  // --- FUNGSI PROSESOR GAMBAR (CROP & RESIZE & KOMPRESI) ---
   async function convertImageFormat(file, format, quality, scale, cropRatio) {
     scale = scale || 1.0;
     cropRatio = cropRatio || 'none';
