@@ -56,7 +56,7 @@
       accept: 'video/mp4,.mp4', extensions: ['mp4'], maxFiles: 5, runLabel: 'Ekstrak Audio WAV'
     },
     'crop-video': {
-      marker: 'KOMPRES & PANGKAS VIDEO', title: 'Perkecil Ukuran (MB) & Pangkas Video', description: 'Kurangi ukuran file video dengan menurunkan bitrate (kualitas) atau potong area bingkainya.',
+      marker: 'KOMPRES & PANGKAS VIDEO', title: 'perkecil ukuran dan potong area video', description: 'Kurangi ukuran file video dengan menurunkan bitrate (kualitas) atau potong area bingkai video.',
       dropTitle: 'Tarik video ke sini', requirements: 'atau pilih dari perangkat · MP4, WebM · maksimal 2 file',
       accept: 'video/mp4,video/webm,.mp4,.webm', extensions: ['mp4', 'webm'], maxFiles: 2, runLabel: 'Proses Video'
     }
@@ -1093,7 +1093,7 @@
         var startX = Math.max(0, cropX || 0);
         var startY = Math.max(0, cropY || 0);
         
-        // Jika cropWidth atau cropHeight kosong (0), ikuti lebar aslinya untuk menghindari bingkai kepotong
+       
         var targetW = cropWidth ? Math.min(cropWidth, video.videoWidth - startX) : video.videoWidth - startX;
         var targetH = cropHeight ? Math.min(cropHeight, video.videoHeight - startY) : video.videoHeight - startY;
 
