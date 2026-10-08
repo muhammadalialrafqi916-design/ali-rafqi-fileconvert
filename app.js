@@ -756,6 +756,767 @@
       var type = result.blob.type;
 
       if (type.startsWith('image/')) {
+        var img = document.Kode default `App.js` di bawah ini akan mengembalikan fungsi dan tampilan aplikasi ke versi semula yang rapi[cite: 7]. 
+
+```javascript
+(function () {
+  'use strict';
+
+  var DB_NAME = 'AliRafqiStudio_V2';
+  var DB_VERSION = 1;
+  var PBKDF2_ITERATIONS = 10000;
+  var SESSION_DAYS = 45;
+  var ACTIVE_SESSION_KEY = 'aliRafqiFileStudio.activeSession.v2';
+  var THEME_KEY = 'aliRafqiFileStudio.theme.v1';
+  var PDF_WORKER_URL = '[https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js](https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js)';
+  var MAX_FILE_SIZE = 80 * 1024 * 1024;
+  var MAX_TOTAL_SIZE = 200 * 1024 * 1024;
+  var MAX_IMAGE_PIXELS = 40000000;
+  var MAX_PDF_PAGES = 60;
+
+  var databasePromise;
+  var state = {
+    authMode: 'login',
+    currentUser: null,
+    selectedTool: 'images',
+    files: [],
+    results: [],
+    processing: false,
+    lastFailures: []
+  };
+
+  var tools = {
+    images: {
+      marker: 'GAMBAR', title: 'Ubah, Perkecil & Pangkas Gambar', description: 'Ubah format, perkecil ukuran (KB/MB), atau pangkas rasio gambar JPG, PNG, WebP.',
+      dropTitle: 'Tarik gambar ke sini', requirements: 'atau pilih dari perangkat · JPG, PNG, WebP · maksimal 15 file',
+      accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp', extensions: ['jpg', 'jpeg', 'png', 'webp'], maxFiles: 15, runLabel: 'Proses Gambar'
+    },
+    'pdf-images': {
+      marker: 'PDF → GAMBAR', title: 'PDF ke gambar', description: 'Render halaman PDF menjadi gambar PNG atau JPG.',
+      dropTitle: 'Tarik PDF ke sini', requirements: 'atau pilih dari perangkat · PDF · maksimal 4 file',
+      accept: 'application/pdf,.pdf', extensions: ['pdf'], maxFiles: 4, runLabel: 'Ubah PDF ke gambar'
+    },
+    'images-pdf': {
+      marker: 'GAMBAR → PDF', title: 'Gambar ke PDF', description: 'Gabungkan satu atau beberapa gambar menjadi satu dokumen PDF.',
+      dropTitle: 'Tarik gambar ke sini', requirements: 'atau pilih dari perangkat · JPG, PNG, WebP · maksimal 15 file',
+      accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp', extensions: ['jpg', 'jpeg', 'png', 'webp'], maxFiles: 15, runLabel: 'Buat PDF'
+    },
+    documents: {
+      marker: 'DOKUMEN → PDF', title: 'Dokumen teks ke PDF', description: 'Ekspor isi TXT atau DOCX (Word) menjadi PDF.',
+      dropTitle: 'Tarik dokumen ke sini', requirements: 'atau pilih dari perangkat · TXT, DOCX · maksimal 5 file',
+      accept: 'text/plain,.txt,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document', extensions: ['txt', 'docx'], maxFiles: 5, runLabel: 'Buat PDF dokumen'
+    },
+    'merge-pdf': {
+      marker: 'GABUNG PDF', title: 'Gabungkan PDF', description: 'Satukan beberapa PDF mengikuti urutan file yang dipilih.',
+      dropTitle: 'Tarik beberapa PDF ke sini', requirements: 'atau pilih dari perangkat · PDF · maksimal 12 file',
+      accept: 'application/pdf,.pdf', extensions: ['pdf'], maxFiles: 12, runLabel: 'Gabungkan PDF'
+    },
+    'video-audio': {
+      marker: 'VIDEO → AUDIO', title: 'Video ke Audio', description: 'Ekstrak suara dari MP4 menjadi format Audio (WAV) murni tanpa server.',
+      dropTitle: 'Tarik video MP4 ke sini', requirements: 'atau pilih dari perangkat · MP4 · maksimal 5 file',
+      accept: 'video/mp4,.mp4', extensions: ['mp4'], maxFiles: 5, runLabel: 'Ekstrak Audio WAV'
+    },
+    'crop-video': {
+      marker: 'KOMPRES & PANGKAS VIDEO', title: 'perkecil ukuran dan potong area video', description: 'Kurangi ukuran file video dengan menurunkan bitrate (kualitas) atau potong area bingkai video.',
+      dropTitle: 'Tarik video ke sini', requirements: 'atau pilih dari perangkat · MP4, WebM · maksimal 2 file',
+      accept: 'video/mp4,video/webm,.mp4,.webm', extensions: ['mp4', 'webm'], maxFiles: 2, runLabel: 'Proses Video'
+    }
+  };
+
+  var el = {};
+
+  function safeSetText(element, value) {
+    if (element) element.textContent = value;
+  }
+
+  function safeSetAttr(element, name, value) {
+    if (element) element.setAttribute(name, value);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    cacheElements();
+    initializeTheme();
+    bindAuthEvents();
+    bindStudioEvents();
+    configurePdfWorker();
+    initializeApplication();
+  });
+
+  function cacheElements() {
+    [
+      'auth-screen', 'studio-shell', 'auth-form', 'auth-kicker', 'auth-heading', 'auth-description', 'auth-message',
+      'auth-submit', 'auth-submit-label', 'switch-auth-mode', 'switch-copy', 'display-name', 'username', 'password',
+      'remember-device', 'theme-toggle', 'open-history', 'history-count', 'open-settings', 'profile-avatar', 'profile-name',
+      'welcome-name', 'settings-avatar', 'settings-name', 'settings-username', 'logout-button', 'delete-local-data',
+      'file-picker', 'drop-zone', 'drop-title', 'file-requirements', 'choose-files', 'selected-files', 'selected-file-count',
+      'file-list', 'clear-files', 'active-tool-marker', 'workbench-title', 'workbench-description', 'conversion-options',
+      'run-conversion', 'run-label', 'work-status', 'progress-wrap', 'progress-label', 'progress-value', 'progress-bar',
+      'results-section', 'result-list', 'download-all', 'history-dialog', 'history-list', 'clear-history', 'settings-dialog'
+    ].forEach(function (id) { el[id] = document.getElementById(id); });
+  }
+
+  async function initializeApplication() {
+    if (!isLocalProfileSupported()) {
+      setAuthMessage('Browser ini tidak mendukung penyimpanan profil aman. Gunakan Chrome terbaru.');
+      if (el['auth-submit']) el['auth-submit'].disabled = true;
+      return;
+    }
+
+    try {
+      await getDatabase();
+      await restoreSession();
+    } catch (error) {
+      console.error(error);
+      setAuthMessage('Database lokal tidak dapat dibuka. Pastikan penyimpanan browser tidak diblokir.');
+    }
+  }
+
+  function isLocalProfileSupported() {
+    return Boolean(window.indexedDB && window.crypto && window.crypto.subtle && window.TextEncoder);
+  }
+
+  function configurePdfWorker() {
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_WORKER_URL;
+    }
+  }
+
+  function initializeTheme() {
+    var savedTheme = safeStorageGet(THEME_KEY);
+    var shouldUseDark = savedTheme === 'dark' || (!savedTheme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.body.classList.toggle('dark-theme', shouldUseDark);
+  }
+
+  function bindAuthEvents() {
+    var showPassBtn = document.querySelector('.show-password');
+    if (showPassBtn) {
+      showPassBtn.addEventListener('click', function () {
+        if (!el.password) return;
+        var willShow = el.password.type === 'password';
+        el.password.type = willShow ? 'text' : 'password';
+        this.textContent = willShow ? 'Sembunyi' : 'Tampil';
+      });
+    }
+
+    if (el['switch-auth-mode']) {
+      el['switch-auth-mode'].addEventListener('click', function () {
+        setAuthMode(state.authMode === 'login' ? 'register' : 'login');
+      });
+    }
+
+    if (el.username) {
+      el.username.addEventListener('input', function () {
+        this.value = this.value.replace(/\s/g, '');
+        this.removeAttribute('aria-invalid');
+      });
+    }
+    if (el.password) {
+      el.password.addEventListener('input', function () { this.removeAttribute('aria-invalid'); });
+    }
+
+    if (el['auth-form']) {
+      el['auth-form'].addEventListener('submit', function (event) {
+        event.preventDefault();
+        submitAuthForm();
+      });
+    }
+  }
+
+  function bindStudioEvents() {
+    if (el['theme-toggle']) {
+      el['theme-toggle'].addEventListener('click', function () {
+        var isDark = document.body.classList.toggle('dark-theme');
+        safeStorageSet(THEME_KEY, isDark ? 'dark' : 'light');
+      });
+    }
+
+    document.querySelectorAll('.tool-card').forEach(function (button) {
+      button.addEventListener('click', function () { selectTool(this.dataset.tool); });
+    });
+
+    document.querySelectorAll('.sidebar-link[data-scroll-target]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var target = document.getElementById(this.dataset.scrollTarget);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    if (el['choose-files']) {
+      el['choose-files'].addEventListener('click', function (event) {
+        event.stopPropagation();
+        if (el['file-picker']) el['file-picker'].click();
+      });
+    }
+    if (el['drop-zone']) {
+      el['drop-zone'].addEventListener('click', function (event) {
+        if (event.target.closest('button')) return;
+        if (el['file-picker']) el['file-picker'].click();
+      });
+    }
+    if (el['file-picker']) {
+      el['file-picker'].addEventListener('change', function () {
+        addFiles(Array.prototype.slice.call(this.files));
+        this.value = '';
+      });
+    }
+
+    if (el['file-list']) {
+      el['file-list'].addEventListener('click', function (event) {
+        var removeButton = event.target.closest('[data-remove-file]');
+        if (!removeButton || state.processing) return;
+        state.files.splice(Number(removeButton.dataset.removeFile), 1);
+        renderFiles();
+        setStatus(state.files.length ? 'File diperbarui. Siap diproses.' : 'Pilih file untuk memulai.');
+      });
+    }
+
+    if (el['clear-files']) {
+      el['clear-files'].addEventListener('click', function () {
+        if (state.processing) return;
+        clearFiles();
+        clearResults();
+        setStatus('Menunggu file...');
+      });
+    }
+
+    if (el['run-conversion']) el['run-conversion'].addEventListener('click', runConversion);
+    if (el['open-history']) el['open-history'].addEventListener('click', openHistory);
+    document.querySelectorAll('[data-close-dialog]').forEach(function (button) {
+      button.addEventListener('click', function () { if (this.closest('dialog')) this.closest('dialog').close(); });
+    });
+    if (el['clear-history']) el['clear-history'].addEventListener('click', clearHistory);
+    if (el['open-settings']) el['open-settings'].addEventListener('click', function () { if (el['settings-dialog']) el['settings-dialog'].showModal(); });
+    if (el['logout-button']) el['logout-button'].addEventListener('click', logout);
+    if (el['delete-local-data']) el['delete-local-data'].addEventListener('click', deleteAllLocalData);
+    if (el['download-all']) el['download-all'].addEventListener('click', downloadAllResults);
+
+    if (el['result-list']) {
+      el['result-list'].addEventListener('click', function (event) {
+        var button = event.target.closest('[data-download-result]');
+        if (!button) return;
+        var index = Number(button.dataset.downloadResult);
+        var result = state.results[index];
+        if (!result) return;
+        downloadBlob(result.blob, result.filename);
+        saveToHistory(result);
+      });
+    }
+  }
+
+  function safeStorageGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function safeStorageSet(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+  function safeStorageRemove(key) { try { localStorage.removeItem(key); } catch (e) { } }
+  function encodeUTF8(text) { return new TextEncoder().encode(text); }
+  function buf2hex(buffer) { return Array.prototype.slice.call(new Uint8Array(buffer)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join(''); }
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    var k = 1024, sizes = ['B', 'KB', 'MB', 'GB'], i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  async function getDatabase() {
+    if (databasePromise) return databasePromise;
+    databasePromise = new Promise(function (resolve, reject) {
+      var request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onerror = function () { reject(new Error('IndexedDB Error')); };
+      request.onsuccess = function (event) { resolve(event.target.result); };
+      request.onupgradeneeded = function (event) {
+        var db = event.target.result;
+        if (!db.objectStoreNames.contains('users')) db.createObjectStore('users', { keyPath: 'username' });
+        if (!db.objectStoreNames.contains('history')) {
+          var hs = db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
+          hs.createIndex('username', 'username', { unique: false });
+        }
+      };
+    });
+    return databasePromise;
+  }
+
+  async function performDbTransaction(storeName, mode, callback) {
+    var db = await getDatabase();
+    return new Promise(function (resolve, reject) {
+      var tx = db.transaction(storeName, mode);
+      var store = tx.objectStore(storeName);
+      var request = callback(store);
+      tx.oncomplete = function () { resolve(request ? request.result : undefined); };
+      tx.onerror = function () { reject(tx.error); };
+    });
+  }
+
+  async function generatePasswordHash(password, salt) {
+    var keyMaterial = await crypto.subtle.importKey('raw', encodeUTF8(password), { name: 'PBKDF2' }, false, ['deriveBits', 'deriveKey']);
+    var derivedKey = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      true,
+      ['encrypt', 'decrypt']
+    );
+    var exportedKey = await crypto.subtle.exportKey('raw', derivedKey);
+    return buf2hex(exportedKey);
+  }
+
+  async function generateAvatarDataUrl(name) {
+    var canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#4a90e2';
+    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 30px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText((name || 'U').charAt(0).toUpperCase(), 32, 34);
+    return canvas.toDataURL('image/png');
+  }
+
+  function setAuthMode(mode) {
+    state.authMode = mode;
+    var isReg = mode === 'register';
+    safeSetText(el['auth-heading'], isReg ? 'Buat Profil Offline' : 'Masuk ke Studio');
+    safeSetText(el['auth-description'], isReg ? 'Karya dan datamu hanya tersimpan di perangkat ini.' : 'Gunakan profil lokal yang sudah ada di perangkat ini.');
+    safeSetText(el['auth-submit-label'], isReg ? 'Buat profil dan masuk' : 'Masuk ke Studio');
+    safeSetText(el['auth-kicker'], isReg ? 'Sudah punya profil?' : 'Belum punya profil lokal?');
+    safeSetText(el['switch-copy'], isReg ? 'Masuk sekarang.' : 'Buat profil');
+
+    if (el['display-name'] && el['display-name'].parentElement) {
+       el['display-name'].parentElement.hidden = !isReg;
+    }
+    setAuthMessage('');
+    if (el['auth-form']) el['auth-form'].reset();
+  }
+
+  function setAuthMessage(text) { if (el['auth-message']) el['auth-message'].textContent = text; }
+  function setFormLoading(isLoading) {
+    if (el['auth-submit']) el['auth-submit'].disabled = isLoading;
+    if (el['auth-form']) el['auth-form'].classList.toggle('loading', isLoading);
+  }
+
+  async function submitAuthForm() {
+    setFormLoading(true);
+    setAuthMessage('');
+
+    var dNameEl = el['display-name'];
+    var unameEl = el.username;
+    var passEl = el.password;
+
+    var dName = dNameEl ? dNameEl.value.trim() : '';
+    var uname = unameEl ? unameEl.value.toLowerCase() : '';
+    var pass = passEl ? passEl.value : '';
+
+    if (!uname || uname.length < 3) { finishAuthError(unameEl, 'Nama pengguna minimal 3 karakter.'); return; }
+    if (!pass || pass.length < 5) { finishAuthError(passEl, 'Kata sandi minimal 5 karakter.'); return; }
+
+    try {
+      if (state.authMode === 'register') {
+        if (!dName) { finishAuthError(dNameEl, 'Nama tampilan diperlukan.'); return; }
+        var exists = await performDbTransaction('users', 'readonly', function (s) { return s.get(uname); });
+        if (exists) { finishAuthError(unameEl, 'Nama pengguna sudah dipakai.'); return; }
+
+        var salt = crypto.getRandomValues(new Uint8Array(16));
+        var hashHex = await generatePasswordHash(pass, salt);
+        var avatarUrl = await generateAvatarDataUrl(dName);
+
+        var newUser = {
+          username: uname, displayName: dName, hashHex: hashHex, saltHex: buf2hex(salt),
+          avatarDataUrl: avatarUrl, createdAt: Date.now()
+        };
+
+        await performDbTransaction('users', 'readwrite', function (s) { return s.add(newUser); });
+        finishAuthSuccess(newUser, el['remember-device'] ? el['remember-device'].checked : false);
+      } else {
+        var userRecord = await performDbTransaction('users', 'readonly', function (s) { return s.get(uname); });
+
+        if (!userRecord) {
+          finishAuthError(null, 'Nama belum terdaftar. Klik "Buat profil" di bawah.');
+          return;
+        }
+
+        if (!userRecord.saltHex) {
+           finishAuthError(null, 'Format akun lama. Silakan hapus/buat profil baru.');
+           return;
+        }
+
+        var saltBytes = new Uint8Array(userRecord.saltHex.match(/.{1,2}/g).map(function (byte) { return parseInt(byte, 16); }));
+        var inputHashHex = await generatePasswordHash(pass, saltBytes);
+
+        if (inputHashHex !== userRecord.hashHex) { finishAuthError(null, 'Kata sandi salah.'); return; }
+        finishAuthSuccess(userRecord, el['remember-device'] ? el['remember-device'].checked : false);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Terdapat error sistem di HP kamu: " + error.message);
+      setAuthMessage('Gagal masuk. Lihat pesan popup.');
+      setFormLoading(false);
+    }
+  }
+
+  function finishAuthError(inputEl, msg) {
+    if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
+    setAuthMessage(msg);
+    setFormLoading(false);
+  }
+
+  function finishAuthSuccess(userRecord, remember) {
+    setFormLoading(false);
+    if (el.password) el.password.value = '';
+    state.currentUser = { username: userRecord.username, displayName: userRecord.displayName, avatarDataUrl: userRecord.avatarDataUrl };
+
+    if (remember) {
+      var expires = Date.now() + (SESSION_DAYS * 24 * 60 * 60 * 1000);
+      safeStorageSet(ACTIVE_SESSION_KEY, JSON.stringify({ u: userRecord.username, e: expires }));
+    }
+
+    applyUserToUi();
+    if (el['auth-screen']) el['auth-screen'].hidden = true;
+    if (el['studio-shell']) el['studio-shell'].hidden = false;
+    selectTool('images');
+  }
+
+  async function restoreSession() {
+    var stored = safeStorageGet(ACTIVE_SESSION_KEY);
+    if (!stored) return;
+    try {
+      var session = JSON.parse(stored);
+      if (session.u && session.e > Date.now()) {
+        var userRecord = await performDbTransaction('users', 'readonly', function (s) { return s.get(session.u); });
+        if (userRecord) {
+          state.currentUser = { username: userRecord.username, displayName: userRecord.displayName, avatarDataUrl: userRecord.avatarDataUrl };
+          applyUserToUi();
+          if (el['auth-screen']) el['auth-screen'].hidden = true;
+          if (el['studio-shell']) el['studio-shell'].hidden = false;
+          selectTool('images');
+        } else safeStorageRemove(ACTIVE_SESSION_KEY);
+      } else safeStorageRemove(ACTIVE_SESSION_KEY);
+    } catch (e) {
+      safeStorageRemove(ACTIVE_SESSION_KEY);
+    }
+  }
+
+  function applyUserToUi() {
+    if (!state.currentUser) return;
+    safeSetText(el['profile-name'], state.currentUser.displayName);
+    if (el['profile-avatar']) el['profile-avatar'].src = state.currentUser.avatarDataUrl;
+    safeSetText(el['welcome-name'], state.currentUser.displayName.split(' ')[0] + '!');
+    if (el['settings-avatar']) el['settings-avatar'].src = state.currentUser.avatarDataUrl;
+    safeSetText(el['settings-name'], state.currentUser.displayName);
+    safeSetText(el['settings-username'], '@' + state.currentUser.username);
+    updateHistoryBadge();
+  }
+
+  function logout() {
+    safeStorageRemove(ACTIVE_SESSION_KEY);
+    state.currentUser = null;
+    clearFiles(); clearResults();
+    if (el['studio-shell']) el['studio-shell'].hidden = true;
+    if (el['auth-screen']) el['auth-screen'].hidden = false;
+    if (el['settings-dialog']) el['settings-dialog'].close();
+  }
+
+  async function deleteAllLocalData() {
+    if (!confirm('Hapus permanen profil dan riwayat?')) return;
+    try {
+      var request = indexedDB.deleteDatabase(DB_NAME);
+      request.onsuccess = function () {
+        safeStorageRemove(THEME_KEY);
+        alert('Data berhasil dihapus. Halaman akan dimuat ulang.');
+        window.location.reload();
+      };
+      request.onerror = function () { alert('Gagal menghapus sebagian data.'); };
+    } catch (error) { alert('Tidak dapat menghapus data.'); }
+  }
+
+  async function saveToHistory(resultData) {
+    if (!state.currentUser) return;
+    try {
+      await performDbTransaction('history', 'readwrite', function (s) {
+        return s.add({ username: state.currentUser.username, timestamp: Date.now(), filename: resultData.filename, sizeBytes: resultData.blob.size, toolUsed: state.selectedTool });
+      });
+      updateHistoryBadge();
+    } catch (e) { console.error('Gagal simpan riwayat', e); }
+  }
+
+  async function updateHistoryBadge() {
+    if (!state.currentUser) return;
+    try {
+      var all = await performDbTransaction('history', 'readonly', function (s) { return s.index('username').getAll(state.currentUser.username); });
+      safeSetText(el['history-count'], (all && all.length) ? String(all.length) : '');
+    } catch (e) { safeSetText(el['history-count'], ''); }
+  }
+
+  async function openHistory() {
+    if (!state.currentUser || !el['history-list']) return;
+    el['history-list'].replaceChildren();
+    try {
+      var all = await performDbTransaction('history', 'readonly', function (s) { return s.index('username').getAll(state.currentUser.username); });
+      all.sort(function (a, b) { return b.timestamp - a.timestamp; });
+      if (!all.length) {
+        var li = document.createElement('li');
+        li.textContent = 'Belum ada catatan unduhan.';
+        li.style.color = 'var(--text-secondary)'; li.style.textAlign = 'center';
+        el['history-list'].append(li);
+      } else {
+        all.forEach(function (h) {
+          var item = document.createElement('li');
+          var name = document.createElement('strong'); name.textContent = h.filename;
+          var details = document.createElement('span'); details.className = 'history-details';
+          var date = new Date(h.timestamp);
+          details.textContent = formatBytes(h.sizeBytes) + ' • ' + h.toolUsed + ' • ' + date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          item.append(name, details); el['history-list'].append(item);
+        });
+      }
+      if (el['history-dialog']) el['history-dialog'].showModal();
+    } catch (e) { alert('Gagal memuat riwayat.'); }
+  }
+
+  async function clearHistory() {
+    if (!confirm('Hapus seluruh riwayat unduhanmu?')) return;
+    try {
+      var db = await getDatabase();
+      var tx = db.transaction('history', 'readwrite');
+      var store = tx.objectStore('history');
+      var index = store.index('username');
+      var request = index.openCursor(IDBKeyRange.only(state.currentUser.username));
+
+      request.onsuccess = function (e) {
+        var cursor = e.target.result;
+        if (cursor) { store.delete(cursor.primaryKey); cursor.continue(); }
+        else {
+          if (el['history-list']) {
+            el['history-list'].replaceChildren();
+            var li = document.createElement('li'); li.textContent = 'Riwayat sudah bersih.'; li.style.textAlign = 'center';
+            el['history-list'].append(li);
+          }
+          updateHistoryBadge();
+        }
+      };
+    } catch (e) { alert('Gagal menghapus riwayat.'); }
+  }
+
+  function selectTool(toolName, skipClear) {
+    if (state.processing) return;
+    if (!tools[toolName]) toolName = 'images';
+    state.selectedTool = toolName;
+    var tool = tools[toolName];
+
+    document.querySelectorAll('.tool-card').forEach(function (btn) {
+      btn.setAttribute('aria-pressed', btn.dataset.tool === toolName ? 'true' : 'false');
+    });
+
+    safeSetText(el['active-tool-marker'], tool.marker);
+    safeSetText(el['workbench-title'], tool.title);
+    safeSetText(el['workbench-description'], tool.description);
+    safeSetText(el['drop-title'], tool.dropTitle);
+    safeSetText(el['file-requirements'], tool.requirements);
+    if (el['file-picker']) el['file-picker'].accept = tool.accept;
+    safeSetText(el['run-label'], tool.runLabel);
+
+    if (el['conversion-options']) el['conversion-options'].replaceChildren();
+
+    if (toolName === 'images') {
+      var group = document.createElement('div');
+      group.className = 'option-group';
+      group.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; width: 100%;';
+
+      var lblFormat = document.createElement('label');
+      lblFormat.className = 'field compact';
+      lblFormat.innerHTML = '<span>Format hasil</span>';
+      var selectFormat = document.createElement('select');
+      selectFormat.id = 'dynamic-format-select';
+      selectFormat.innerHTML = '<option value="jpg">JPG — ukuran lebih ringan</option><option value="png">PNG — kualitas tajam</option><option value="webp">WebP — efisien & modern</option>';
+      lblFormat.appendChild(selectFormat);
+
+      var lblQuality = document.createElement('label');
+      lblQuality.className = 'field compact';
+      lblQuality.innerHTML = '<span>Kualitas kompresi: <strong id="dynamic-quality-output">85%</strong></span>';
+      var inputQuality = document.createElement('input');
+      inputQuality.type = 'range';
+      inputQuality.id = 'dynamic-quality-input';
+      inputQuality.min = '10';
+      inputQuality.max = '100';
+      inputQuality.value = '85';
+      inputQuality.addEventListener('input', function() {
+        var out = document.getElementById('dynamic-quality-output');
+        if (out) out.textContent = this.value + '%';
+      });
+      lblQuality.appendChild(inputQuality);
+
+      var lblScale = document.createElement('label');
+      lblScale.className = 'field compact';
+      lblScale.innerHTML = '<span>Skala dimensi (perkecil)</span>';
+      var selectScale = document.createElement('select');
+      selectScale.id = 'dynamic-scale-select';
+      selectScale.innerHTML = '<option value="1">100% (Ukuran Asli)</option><option value="0.75">75% (Sedang)</option><option value="0.5">50% (Separuh Piksel)</option><option value="0.25">25% (Kecil)</option>';
+      lblScale.appendChild(selectScale);
+
+      var lblCrop = document.createElement('label');
+      lblCrop.className = 'field compact';
+      lblCrop.innerHTML = '<span>Pangkas rasio (Crop)</span>';
+      var selectCrop = document.createElement('select');
+      selectCrop.id = 'dynamic-crop-select';
+      selectCrop.innerHTML = '<option value="none">Tanpa Pangkas (Utuh)</option><option value="1:1">1:1 — Persegi (Foto Profil)</option><option value="16:9">16:9 — Lansekap (Layar Lebar)</option><option value="4:3">4:3 — Standar</option><option value="3:4">3:4 — Potret</option>';
+      lblCrop.appendChild(selectCrop);
+
+      group.appendChild(lblFormat);
+      group.appendChild(lblQuality);
+      group.appendChild(lblScale);
+      group.appendChild(lblCrop);
+      if (el['conversion-options']) el['conversion-options'].appendChild(group);
+
+    } else if (toolName === 'pdf-images') {
+      var groupPdf = document.createElement('div');
+      groupPdf.className = 'option-group';
+      groupPdf.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; width: 100%;';
+
+      var lblPdfFmt = document.createElement('label');
+      lblPdfFmt.className = 'field compact';
+      lblPdfFmt.innerHTML = '<span>Format hasil</span>';
+      var selectPdfFmt = document.createElement('select');
+      selectPdfFmt.id = 'dynamic-format-select';
+      selectPdfFmt.innerHTML = '<option value="png">PNG — tajam</option><option value="jpg">JPG — lebih ringan</option>';
+      lblPdfFmt.appendChild(selectPdfFmt);
+
+      groupPdf.appendChild(lblPdfFmt);
+      if (el['conversion-options']) el['conversion-options'].appendChild(groupPdf);
+
+    } else if (toolName === 'documents' || toolName === 'images-pdf' || toolName === 'merge-pdf') {
+      var noteDiv = document.createElement('div');
+      noteDiv.className = 'option-group note-options';
+      noteDiv.innerHTML = '<span>ℹ</span><p>' + 
+        (toolName === 'documents' ? 'Format yang didukung: TXT dan DOCX (Word). Hasil akan berupa dokumen PDF.' : 
+        (toolName === 'images-pdf' ? 'Pilih beberapa gambar untuk disusun menjadi satu file PDF.' : 
+        'Urutan PDF mengikuti daftar file di atas. Pilih beberapa file PDF lalu gabungkan.')) + 
+        '</p>';
+      if (el['conversion-options']) el['conversion-options'].appendChild(noteDiv);
+
+    } else if (toolName === 'video-audio') {
+      var noteAud = document.createElement('div');
+      noteAud.className = 'option-group note-options';
+      noteAud.innerHTML = '<span>ℹ</span><p>Audio akan diekstrak langsung dari file MP4 Anda menjadi file audio WAV murni tanpa server.</p>';
+      if (el['conversion-options']) el['conversion-options'].appendChild(noteAud);
+
+    } else if (toolName === 'crop-video') {
+      var cropGroup = document.createElement('div');
+      cropGroup.className = 'option-group';
+      cropGroup.style.cssText = 'width: 100%; display: flex; flex-direction: column; gap: 10px;';
+
+      var lblBitrateInfo = document.createElement('span');
+      lblBitrateInfo.style.fontWeight = 'bold';
+      lblBitrateInfo.textContent = 'Pengaturan Kompresi (Untuk mengurangi MB):';
+      cropGroup.appendChild(lblBitrateInfo);
+
+      var bitrateWrapper = document.createElement('label');
+      bitrateWrapper.className = 'field compact';
+      bitrateWrapper.innerHTML = '<span>Kualitas Video (Bitrate):</span>';
+      var bitrateSelect = document.createElement('select');
+      bitrateSelect.id = 'videoBitrate';
+      bitrateSelect.innerHTML = '<option value="">Otomatis (Bawaan)</option><option value="5000000">Tinggi (5 Mbps)</option><option value="2500000">Sedang (2.5 Mbps)</option><option value="1000000">Rendah (1 Mbps)</option>';
+      bitrateWrapper.appendChild(bitrateSelect);
+      cropGroup.appendChild(bitrateWrapper);
+
+      var lblCropInfo = document.createElement('span');
+      lblCropInfo.style.fontWeight = 'bold';
+      lblCropInfo.style.marginTop = '10px';
+      lblCropInfo.textContent = 'Pengaturan Potong Area/Bingkai (Kosongkan Lebar/Tinggi untuk membiarkan bentuk aslinya):';
+      cropGroup.appendChild(lblCropInfo);
+
+      var gridCrop = document.createElement('div');
+      gridCrop.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;';
+
+      var cropInputs = [
+        { id: 'cropX', label: 'Posisi AWAL X (px):', default: '0' },
+        { id: 'cropY', label: 'Posisi AWAL Y (px):', default: '0' },
+        { id: 'cropW', label: 'LEBAR Hasil (px):', default: '' },
+        { id: 'cropH', label: 'TINGGI Hasil (px):', default: '' }
+      ];
+
+      cropInputs.forEach(function (inp) {
+        var wrapper = document.createElement('label');
+        wrapper.className = 'field compact';
+        wrapper.innerHTML = '<span>' + inp.label + '</span>';
+        var input = document.createElement('input');
+        input.type = 'number';
+        input.id = inp.id;
+        input.value = inp.default;
+        input.min = '0';
+        wrapper.appendChild(input);
+        gridCrop.appendChild(wrapper);
+      });
+
+      cropGroup.appendChild(gridCrop);
+      if (el['conversion-options']) el['conversion-options'].appendChild(cropGroup);
+    }
+
+    if (!skipClear) { clearFiles(); clearResults(); setStatus('Menunggu file...'); }
+    else { validateFilesAgainstTool(); }
+  }
+
+  function addFiles(newFiles) {
+    if (state.processing) return;
+    var tool = tools[state.selectedTool];
+    var totalSize = state.files.reduce(function (sum, f) { return sum + f.size; }, 0);
+    var addedCount = 0;
+
+    newFiles.forEach(function (file) {
+      if (state.files.length >= tool.maxFiles) { setStatus('Maksimal ' + tool.maxFiles + ' file.', true); return; }
+      var ext = file.name.split('.').pop().toLowerCase();
+      if (tool.extensions.indexOf(ext) === -1) { setStatus('Format ' + ext.toUpperCase() + ' tidak didukung.', true); return; }
+      if (file.size > MAX_FILE_SIZE) { setStatus(file.name + ' melebihi batas 80MB.', true); return; }
+      if (totalSize + file.size > MAX_TOTAL_SIZE) { setStatus('Total ukuran melampaui 200MB.', true); return; }
+      if (state.files.some(function (f) { return f.name === file.name && f.size === file.size; })) return;
+
+      state.files.push(file); totalSize += file.size; addedCount++;
+    });
+
+    if (addedCount > 0) { renderFiles(); setStatus(state.files.length + ' file siap diproses.'); }
+  }
+
+  function validateFilesAgainstTool() {
+    var tool = tools[state.selectedTool];
+    var validFiles = state.files.filter(function (file) { return tool.extensions.indexOf(file.name.split('.').pop().toLowerCase()) !== -1; });
+    if (validFiles.length !== state.files.length) { state.files = validFiles; setStatus('Beberapa file dihapus.', true); }
+    if (state.files.length > tool.maxFiles) { state.files = state.files.slice(0, tool.maxFiles); setStatus('Jumlah file dipangkas.', true); }
+    renderFiles();
+  }
+
+  function renderFiles() {
+    if (el['selected-files']) el['selected-files'].hidden = !state.files.length;
+    if (el['run-conversion']) el['run-conversion'].disabled = !state.files.length;
+    safeSetText(el['selected-file-count'], state.files.length + ' File Dipilih');
+    if (el['file-list']) el['file-list'].replaceChildren();
+
+    state.files.forEach(function (file, index) {
+      var li = document.createElement('li');
+      var nameSpan = document.createElement('span'); nameSpan.className = 'file-name'; nameSpan.textContent = file.name;
+      var sizeSpan = document.createElement('span'); sizeSpan.className = 'file-size'; sizeSpan.textContent = formatBytes(file.size);
+      var removeBtn = document.createElement('button'); removeBtn.className = 'remove-file'; removeBtn.dataset.removeFile = String(index);
+      removeBtn.innerHTML = '&times;';
+      li.append(nameSpan, sizeSpan, removeBtn); if (el['file-list']) el['file-list'].append(li);
+    });
+  }
+
+  function clearFiles() { state.files = []; renderFiles(); }
+
+  function clearResults() {
+    if (state.results && state.results.length) {
+      state.results.forEach(function(r) { if (r.previewUrl) { URL.revokeObjectURL(r.previewUrl); } });
+    }
+    state.results = [];
+    if (el['results-section']) el['results-section'].hidden = true;
+  }
+
+  function renderResults() {
+    if (el['results-section']) el['results-section'].hidden = !state.results.length;
+    if (el['download-all']) el['download-all'].hidden = state.results.length < 2;
+    if (el['result-list']) el['result-list'].replaceChildren();
+
+    state.results.forEach(function (result, index) {
+      var item = document.createElement('div'); item.className = 'result-item';
+
+      var previewBox = document.createElement('div');
+      previewBox.style.cssText = 'background: var(--surface-hover); border-radius: 8px; margin-bottom: 12px; overflow: hidden; display: flex; justify-content: center; align-items: center; border:1px solid var(--border-soft);';
+      var type = result.blob.type;
+
+      if (type.startsWith('image/')) {
         var img = document.createElement('img'); img.src = result.previewUrl; img.style.cssText = 'max-width: 100%; max-height: 250px; object-fit: contain; display: block;';
         previewBox.append(img);
       } else if (type === 'application/pdf') {
@@ -850,12 +1611,12 @@
         }
       } else if (tool === 'images-pdf') {
         updateProgress(10, 'Memuat library PDF...');
-        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+        await loadLibrary('[https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js](https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js)', 'jspdf');
         outputs.push(await convertImagesToPdf(state.files));
       } else if (tool === 'documents') {
         updateProgress(10, 'Memuat library PDF & DOCX...');
-        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
-        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js', 'mammoth');
+        await loadLibrary('[https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js](https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js)', 'jspdf');
+        await loadLibrary('[https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js](https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js)', 'mammoth');
         for (var j = 0; j < state.files.length; j++) {
           updateProgress(10 + ((j / state.files.length) * 80), 'Merender dokumen ' + (j + 1));
           try { outputs.push(await convertDocumentToPdf(state.files[j])); }
@@ -863,7 +1624,7 @@
         }
       } else if (tool === 'merge-pdf') {
         updateProgress(10, 'Memuat library PDF...');
-        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', 'PDFLib');
+        await loadLibrary('[https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js](https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js)', 'PDFLib');
         outputs.push(await mergePdfs(state.files));
       } else if (tool === 'pdf-images') {
         var pdfFmtEl = document.getElementById('dynamic-format-select');
@@ -871,7 +1632,7 @@
         var mimeType = targetPdfFmt === 'jpg' ? 'image/jpeg' : 'image/png';
 
         updateProgress(5, 'Menyiapkan mesin PDF...');
-        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'pdfjsLib');
+        await loadLibrary('[https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js](https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js)', 'pdfjsLib');
         configurePdfWorker();
         for (var k = 0; k < state.files.length; k++) {
           updateProgress(10 + ((k / state.files.length) * 80), 'Mengekstrak PDF ' + (k + 1));
@@ -1244,7 +2005,7 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Menyiapkan ZIP...'; }
 
     try {
-      await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', 'JSZip');
+      await loadLibrary('[https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js](https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js)', 'JSZip');
       var zip = new window.JSZip();
       state.results.forEach(function (result) { zip.file(result.filename, result.blob); });
       var content = await zip.generateAsync({ type: 'blob' });
