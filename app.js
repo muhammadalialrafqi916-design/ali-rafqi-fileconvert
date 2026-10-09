@@ -638,6 +638,20 @@
         gridCrop.appendChild(wrapper);
       });
 
+      // --- TAMBAHAN FITUR KOMPRESI (BITRATE) ---
+      var wrapperBitrate = document.createElement('label');
+      wrapperBitrate.className = 'field compact';
+      wrapperBitrate.style.gridColumn = '1 / -1'; // Buat membentang penuh di bawah
+      wrapperBitrate.innerHTML = '<span>Kualitas (Ukuran File):</span>';
+      var selectBitrate = document.createElement('select');
+      selectBitrate.id = 'videoBitrate';
+      selectBitrate.innerHTML = '<option value="2500000">Tinggi (2.5 Mbps - Standar)</option>' +
+                                '<option value="1000000">Sedang (1 Mbps - Ukuran Berkurang)</option>' +
+                                '<option value="500000">Rendah (500 Kbps - Sangat Kecil)</option>';
+      wrapperBitrate.appendChild(selectBitrate);
+      gridCrop.appendChild(wrapperBitrate);
+      // ----------------------------------------
+
       cropGroup.appendChild(gridCrop);
       el['conversion-options'].appendChild(cropGroup);
     }
@@ -840,15 +854,22 @@
         var cropYEl = document.getElementById('cropY');
         var cropWEl = document.getElementById('cropW');
         var cropHEl = document.getElementById('cropH');
+        // PENANGKAP NILAI BITRATE BARU
+        var bitrateEl = document.getElementById('videoBitrate');
 
         var cX = cropXEl ? parseInt(cropXEl.value, 10) || 0 : 0;
         var cY = cropYEl ? parseInt(cropYEl.value, 10) || 0 : 0;
         var cW = cropWEl ? parseInt(cropWEl.value, 10) || 1280 : 1280;
         var cH = cropHEl ? parseInt(cropHEl.value, 10) || 720 : 720;
+        // AMBIL ANGKA DARI DROPDOWN, DEFAULT 2.5 Mbps (Tinggi)
+        var cBitrate = bitrateEl ? parseInt(bitrateEl.value, 10) : 2500000;
 
         for (var cv = 0; cv < state.files.length; cv++) {
           updateProgress(5 + ((cv / state.files.length) * 90), 'Memotong area video ' + (cv + 1));
-          try { outputs.push(await cropVideo(state.files[cv], cX, cY, cW, cH)); } 
+          try { 
+            // TERUSKAN PARAMETER BITRATE KE cropVideo
+            outputs.push(await cropVideo(state.files[cv], cX, cY, cW, cH, cBitrate)); 
+          } 
           catch (e) { state.lastFailures.push({ file: state.files[cv].name, error: e.message }); }
         }
       }
@@ -1068,7 +1089,8 @@
     });
   }
 
-  async function cropVideo(file, cropX, cropY, cropWidth, cropHeight) {
+  // --- PARAMETER BARU UNTUK videoBitrate DITAMBAHKAN ---
+  async function cropVideo(file, cropX, cropY, cropWidth, cropHeight, videoBitrate) {
     return new Promise(function (resolve, reject) {
       var video = document.createElement('video');
       video.src = URL.createObjectURL(file);
@@ -1092,11 +1114,16 @@
         var ctx = canvas.getContext('2d');
 
         var stream = canvas.captureStream(30);
+        
+        // --- TERAPKAN BITRATE KE RECORDER OPTIONS ---
         var recorderOptions = { mimeType: 'video/webm' };
+        if (videoBitrate) recorderOptions.videoBitsPerSecond = videoBitrate;
 
         if (!MediaRecorder.isTypeSupported('video/webm')) {
           recorderOptions = { mimeType: 'video/mp4' };
+          if (videoBitrate) recorderOptions.videoBitsPerSecond = videoBitrate;
         }
+        // ---------------------------------------------
 
         var mediaRecorder;
         try {
