@@ -9,7 +9,7 @@
 ## 📸 Tampilan Antarmuka (Preview)
 
 <p align="center">
-  <img src="1000111606-removebg-preview.png" alt="AliDev File Studio Interface" width="100%">
+  <img src="Screenshot (50).png" alt="AliDev File Studio Interface" width="100%">
 </p>
 
 ---
