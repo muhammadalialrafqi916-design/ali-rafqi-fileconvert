@@ -43,4 +43,4 @@ Coba aplikasinya secara langsung melalui tautan berikut:
 
 ---
 
-<p align="center">Dibuat dengan ❤️ oleh <b>Alidex</b> (AliDev)</p>
+<p align="center">Dibuat oleh <b>Ali</b> (AliDev)</p>
