@@ -1,0 +1,30 @@
+{
+  "id": "./",
+  "name": "AliDev File Studio",
+  "short_name": "AliDev Studio",
+  "description": "Konversi dan kompres file secara lokal di perangkat.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8f7fb",
+  "theme_color": "#131228",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
