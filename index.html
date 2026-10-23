@@ -123,7 +123,10 @@
             <div class="drop-icon">↑</div>
             <strong id="drop-title">Tarik gambar ke sini</strong>
             <p id="file-requirements">atau pilih dari perangkat · JPG, PNG, WebP · maksimal 15 file</p>
-            <button class="outline-button" id="choose-files" type="button">Pilih file</button>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px;">
+              <button class="outline-button" id="choose-files" type="button">Pilih file</button>
+              <button class="outline-button" id="open-gdrive-modal" type="button" style="border-color: #4285F4; color: #4285F4;">Import Google Drive</button>
+            </div>
           </div>
           <div class="selected-files" id="selected-files" hidden>
             <div class="selected-files-head"><strong>File terpilih</strong><span id="selected-file-count">0 file</span></div>
@@ -183,6 +186,16 @@
     <div class="settings-profile"><span class="large-avatar" id="settings-avatar">A</span><div><strong id="settings-name">Profil</strong><span id="settings-username">@nama</span></div></div>
     <div class="settings-note"><span>⌁</span><p>Profil dan sesi hanya tersimpan pada browser ini. Password disimpan sebagai verifier terenkripsi satu arah, bukan teks asli.</p></div>
     <div class="settings-actions"><button class="outline-button" id="logout-button" type="button">Keluar dari Studio</button><button class="text-button danger-button" id="delete-local-data" type="button">Hapus semua data lokal</button></div>
+  </dialog>
+
+  <dialog class="modal" id="gdrive-dialog" aria-labelledby="gdrive-heading">
+    <div class="modal-head"><div><p class="eyebrow"><i></i> GOOGLE DRIVE</p><h2 id="gdrive-heading">Import dari Google Drive</h2></div><button class="modal-close" type="button" data-close-dialog="gdrive-dialog" aria-label="Tutup">×</button></div>
+    <div class="field" style="margin: 20px 0;">
+      <label for="gdrive-link-input">Link File Google Drive (Publik)</label>
+      <input id="gdrive-link-input" type="url" placeholder="https://drive.google.com/file/d/... atau ID file" style="width: 100%; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; background: var(--surface-color); color: var(--text-color);">
+      <small style="color: var(--text-secondary); display: block; margin-top: 6px;">Pastikan file disetel "Siapa saja yang memiliki link dapat melihat".</small>
+    </div>
+    <div class="modal-actions"><button class="primary-button" id="fetch-gdrive-file" type="button">Ambil File</button><button class="outline-button" type="button" data-close-dialog="gdrive-dialog">Batal</button></div>
   </dialog>
 
   <div class="toast-container" id="global-toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
