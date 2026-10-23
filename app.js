@@ -91,7 +91,8 @@
       'file-picker', 'drop-zone', 'drop-title', 'file-requirements', 'choose-files', 'selected-files', 'selected-file-count',
       'file-list', 'clear-files', 'active-tool-marker', 'workbench-title', 'workbench-description', 'conversion-options',
       'run-conversion', 'run-label', 'work-status', 'progress-wrap', 'progress-label', 'progress-value', 'progress-bar',
-      'results-section', 'result-list', 'download-all', 'history-dialog', 'history-list', 'clear-history', 'settings-dialog', 'global-toast'
+      'results-section', 'result-list', 'download-all', 'history-dialog', 'history-list', 'clear-history', 'settings-dialog', 'global-toast',
+      'gdrive-dialog', 'open-gdrive-modal', 'gdrive-link-input', 'fetch-gdrive-file'
     ].forEach(function (id) { el[id] = document.getElementById(id); });
   }
 
@@ -183,6 +184,16 @@
       this.value = '';
     });
 
+    if (el['open-gdrive-modal']) {
+      el['open-gdrive-modal'].addEventListener('click', function (event) {
+        event.stopPropagation();
+        el['gdrive-dialog'].showModal();
+      });
+    }
+    if (el['fetch-gdrive-file']) {
+      el['fetch-gdrive-file'].addEventListener('click', handleGoogleDriveImport);
+    }
+
     el['file-list'].addEventListener('click', function (event) {
       var removeButton = event.target.closest('[data-remove-file]');
       if (!removeButton || state.processing) return;
@@ -217,6 +228,70 @@
       downloadBlob(result.blob, result.filename);
       saveToHistory(result);
     });
+  }
+
+  function extractGoogleDriveFileId(urlOrId) {
+    var trimmed = String(urlOrId || '').trim();
+    if (!trimmed) return null;
+    if (/^[a-zA-Z0-9_-]{25,}$/.test(trimmed)) {
+      return trimmed;
+    }
+    var matchFileD = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (matchFileD && matchFileD[1]) return matchFileD[1];
+
+    var matchId = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (matchId && matchId[1]) return matchId[1];
+
+    return null;
+  }
+
+  async function handleGoogleDriveImport() {
+    var inputVal = el['gdrive-link-input'].value;
+    var fileId = extractGoogleDriveFileId(inputVal);
+    if (!fileId) {
+      showToast('Link atau ID Google Drive tidak valid.', 'error');
+      return;
+    }
+
+    el['fetch-gdrive-file'].disabled = true;
+    el['fetch-gdrive-file'].textContent = 'Mengambil...';
+
+    try {
+      var downloadUrl = 'https://drive.google.com/uc?export=download&id=' + fileId;
+      var response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error('Gagal mengunduh dari Google Drive. Pastikan file bersifat publik (Anyone with the link).');
+      }
+      var blob = await response.blob();
+      var disposition = response.headers.get('content-disposition');
+      var filename = 'gdrive_file';
+      if (disposition && disposition.indexOf('filename=') !== -1) {
+        var match = disposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      if (filename === 'gdrive_file') {
+        var type = blob.type;
+        if (type.includes('image/jpeg')) filename = 'gdrive_image.jpg';
+        else if (type.includes('image/png')) filename = 'gdrive_image.png';
+        else if (type.includes('image/webp')) filename = 'gdrive_image.webp';
+        else if (type.includes('video/mp4')) filename = 'gdrive_video.mp4';
+        else if (type.includes('video/webm')) filename = 'gdrive_video.webm';
+        else if (type.includes('audio/')) filename = 'gdrive_audio.wav';
+        else if (type.includes('pdf')) filename = 'gdrive_document.pdf';
+        else filename = 'gdrive_file.bin';
+      }
+
+      var file = new File([blob], filename, { type: blob.type });
+      addFiles([file]);
+      el['gdrive-dialog'].close();
+      el['gdrive-link-input'].value = '';
+      showToast('Berhasil mengimpor file dari Google Drive!', 'success');
+    } catch (error) {
+      showToast(error.message || 'Gagal mengambil file dari Google Drive. Periksa izin file atau CORS.', 'error');
+    } finally {
+      el['fetch-gdrive-file'].disabled = false;
+      el['fetch-gdrive-file'].textContent = 'Ambil File';
+    }
   }
 
   function showToast(message, tone) {
@@ -574,7 +649,6 @@
       group.className = 'option-group';
       group.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; width: 100%;';
 
-      // 1. Format Hasil
       var lblFormat = document.createElement('label');
       lblFormat.className = 'field compact';
       lblFormat.innerHTML = '<span>Format hasil</span>';
@@ -583,7 +657,6 @@
       selectFormat.innerHTML = '<option value="jpg">JPG — ukuran lebih ringan</option><option value="png">PNG — kualitas tajam</option><option value="webp">WebP — efisien & modern</option>';
       lblFormat.appendChild(selectFormat);
 
-      // 2. Kualitas Kompresi (Ukuran KB/MB)
       var lblQuality = document.createElement('label');
       lblQuality.className = 'field compact';
       lblQuality.innerHTML = '<span>Kualitas kompresi: <strong id="dynamic-quality-output">85%</strong></span>';
@@ -599,7 +672,6 @@
       });
       lblQuality.appendChild(inputQuality);
 
-      // 3. Skala Dimensi (Perkecil Ukuran Piksel)
       var lblScale = document.createElement('label');
       lblScale.className = 'field compact';
       lblScale.innerHTML = '<span>Skala dimensi (perkecil)</span>';
@@ -608,7 +680,6 @@
       selectScale.innerHTML = '<option value="1">100% (Ukuran Asli)</option><option value="0.75">75% (Sedang)</option><option value="0.5">50% (Separuh Piksel)</option><option value="0.25">25% (Kecil - Sangat Ringan)</option>';
       lblScale.appendChild(selectScale);
 
-      // 4. Pangkas Gambar (Crop Rasio)
       var lblCrop = document.createElement('label');
       lblCrop.className = 'field compact';
       lblCrop.innerHTML = '<span>Pangkas rasio (Crop)</span>';
@@ -712,10 +783,9 @@
         gridCrop.appendChild(wrapper);
       });
 
-      // --- TAMBAHAN FITUR KOMPRESI (BITRATE) ---
       var wrapperBitrate = document.createElement('label');
       wrapperBitrate.className = 'field compact';
-      wrapperBitrate.style.gridColumn = '1 / -1'; // Buat membentang penuh di bawah
+      wrapperBitrate.style.gridColumn = '1 / -1';
       wrapperBitrate.innerHTML = '<span>Kualitas (Ukuran File):</span>';
       var selectBitrate = document.createElement('select');
       selectBitrate.id = 'videoBitrate';
@@ -724,7 +794,6 @@
                                 '<option value="500000">Rendah (500 Kbps - Sangat Kecil)</option>';
       wrapperBitrate.appendChild(selectBitrate);
       gridCrop.appendChild(wrapperBitrate);
-      // ----------------------------------------
 
       cropGroup.appendChild(gridCrop);
       el['conversion-options'].appendChild(cropGroup);
@@ -960,20 +1029,17 @@
         var cropYEl = document.getElementById('cropY');
         var cropWEl = document.getElementById('cropW');
         var cropHEl = document.getElementById('cropH');
-        // PENANGKAP NILAI BITRATE BARU
         var bitrateEl = document.getElementById('videoBitrate');
 
         var cX = cropXEl ? parseInt(cropXEl.value, 10) || 0 : 0;
         var cY = cropYEl ? parseInt(cropYEl.value, 10) || 0 : 0;
         var cW = cropWEl ? parseInt(cropWEl.value, 10) || 1280 : 1280;
         var cH = cropHEl ? parseInt(cropHEl.value, 10) || 720 : 720;
-        // AMBIL ANGKA DARI DROPDOWN, DEFAULT 2.5 Mbps (Tinggi)
         var cBitrate = bitrateEl ? parseInt(bitrateEl.value, 10) : 2500000;
 
         for (var cv = 0; cv < state.files.length; cv++) {
           updateProgress(5 + ((cv / state.files.length) * 90), 'Memotong area video ' + (cv + 1));
           try { 
-            // TERUSKAN PARAMETER BITRATE KE cropVideo
             outputs.push(await cropVideo(state.files[cv], cX, cY, cW, cH, cBitrate)); 
           } 
           catch (e) { state.lastFailures.push({ file: state.files[cv].name, error: e.message }); }
@@ -988,7 +1054,6 @@
     finally { setProcessing(false); }
   }
 
-  // --- FUNGSI PROSESOR GAMBAR (CROP & RESIZE & KOMPRESI) ---
   async function convertImageFormat(file, format, quality, scale, cropRatio) {
     scale = scale || 1.0;
     cropRatio = cropRatio || 'none';
@@ -997,7 +1062,6 @@
     var img = await loadImageFromUrl(dataUrl);
     if (img.width * img.height > MAX_IMAGE_PIXELS) throw new Error('Resolusi gambar terlalu besar. Maks 40MP.');
 
-    // 1. Pangkas Area Tengah (Center Crop) sesuai rasio
     var startX = 0;
     var startY = 0;
     var cropWidth = img.width;
@@ -1022,7 +1086,6 @@
       }
     }
 
-    // 2. Perkecil Dimensi Piksel sesuai skala
     var finalWidth = Math.round(cropWidth * scale);
     var finalHeight = Math.round(cropHeight * scale);
 
@@ -1052,7 +1115,6 @@
     });
   }
 
-  // --- HELPER DOKUMEN & LAINNYA ---
   async function loadLibrary(url, globalObjName) {
     if (window[globalObjName] || (globalObjName === 'jspdf' && window.jspdf)) return;
     return new Promise(function (resolve, reject) {
@@ -1257,7 +1319,6 @@
     });
   }
 
-  // --- PARAMETER BARU UNTUK videoBitrate DITAMBAHKAN ---
   async function cropVideo(file, cropX, cropY, cropWidth, cropHeight, videoBitrate) {
     return new Promise(function (resolve, reject) {
       var video = document.createElement('video');
@@ -1283,7 +1344,6 @@
 
         var stream = canvas.captureStream(30);
         
-        // --- TERAPKAN BITRATE KE RECORDER OPTIONS ---
         var recorderOptions = { mimeType: 'video/webm' };
         if (videoBitrate) recorderOptions.videoBitsPerSecond = videoBitrate;
 
@@ -1291,7 +1351,6 @@
           recorderOptions = { mimeType: 'video/mp4' };
           if (videoBitrate) recorderOptions.videoBitsPerSecond = videoBitrate;
         }
-        // ---------------------------------------------
 
         var mediaRecorder;
         try {
@@ -1369,7 +1428,6 @@
     return new Blob([bufferArray], { type: 'audio/wav' });
   }
 
-  // --- UNDUH ---
   function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a'); a.href = url; a.download = filename;
