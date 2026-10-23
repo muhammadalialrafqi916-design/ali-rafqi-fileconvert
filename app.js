@@ -257,29 +257,33 @@
     el['fetch-gdrive-file'].textContent = 'Mengambil...';
 
     try {
-      var downloadUrl = 'https://drive.google.com/uc?export=download&id=' + fileId;
-      var response = await fetch(downloadUrl);
+      var directUrl = 'https://drive.google.com/uc?export=download&id=' + fileId;
+      var proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(directUrl);
+      var response;
+
+      try {
+        response = await fetch(directUrl);
+        if (!response.ok) throw new Error('Direct fetch error');
+      } catch (err) {
+        response = await fetch(proxyUrl);
+      }
+
       if (!response.ok) {
-        throw new Error('Gagal mengunduh dari Google Drive. Pastikan file bersifat publik (Anyone with the link).');
+        throw new Error('Gagal mengunduh file dari Google Drive.');
       }
+
       var blob = await response.blob();
-      var disposition = response.headers.get('content-disposition');
+      var type = blob.type;
       var filename = 'gdrive_file';
-      if (disposition && disposition.indexOf('filename=') !== -1) {
-        var match = disposition.match(/filename="?([^"]+)"?/);
-        if (match && match[1]) filename = match[1];
-      }
-      if (filename === 'gdrive_file') {
-        var type = blob.type;
-        if (type.includes('image/jpeg')) filename = 'gdrive_image.jpg';
-        else if (type.includes('image/png')) filename = 'gdrive_image.png';
-        else if (type.includes('image/webp')) filename = 'gdrive_image.webp';
-        else if (type.includes('video/mp4')) filename = 'gdrive_video.mp4';
-        else if (type.includes('video/webm')) filename = 'gdrive_video.webm';
-        else if (type.includes('audio/')) filename = 'gdrive_audio.wav';
-        else if (type.includes('pdf')) filename = 'gdrive_document.pdf';
-        else filename = 'gdrive_file.bin';
-      }
+
+      if (type.includes('image/jpeg')) filename = 'gdrive_image.jpg';
+      else if (type.includes('image/png')) filename = 'gdrive_image.png';
+      else if (type.includes('image/webp')) filename = 'gdrive_image.webp';
+      else if (type.includes('video/mp4')) filename = 'gdrive_video.mp4';
+      else if (type.includes('video/webm')) filename = 'gdrive_video.webm';
+      else if (type.includes('audio/')) filename = 'gdrive_audio.wav';
+      else if (type.includes('pdf')) filename = 'gdrive_document.pdf';
+      else filename = 'gdrive_file.bin';
 
       var file = new File([blob], filename, { type: blob.type });
       addFiles([file]);
@@ -287,7 +291,7 @@
       el['gdrive-link-input'].value = '';
       showToast('Berhasil mengimpor file dari Google Drive!', 'success');
     } catch (error) {
-      showToast(error.message || 'Gagal mengambil file dari Google Drive. Periksa izin file atau CORS.', 'error');
+      showToast('Gagal mengambil file. Pastikan izin link disetel publik.', 'error');
     } finally {
       el['fetch-gdrive-file'].disabled = false;
       el['fetch-gdrive-file'].textContent = 'Ambil File';
@@ -621,7 +625,6 @@
       };
     } catch (e) { alert('Gagal menghapus riwayat.'); }
   }
-
 
   // --- DYNAMIC OPTION RENDERER ---
   function selectTool(toolName, skipClear) {
