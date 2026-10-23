@@ -256,31 +256,42 @@
     el['fetch-gdrive-file'].disabled = true;
     el['fetch-gdrive-file'].textContent = 'Mengambil...';
 
-    try {
-      // Menggunakan parameter confirm=t untuk memaksa Google Drive langsung mendownload file besar tanpa halaman peringatan
-      var directUrl = 'https://drive.google.com/uc?export=download&confirm=t&id=' + fileId;
-      var proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(directUrl);
-      var response;
+    // Daftar endpoint alternatif agar lolos dari blokir 403 Google
+    var endpoints = [
+      'https://lh3.googleusercontent.com/d/' + fileId, // Endpoint CDN Google (Terbaik untuk Gambar/Media)
+      'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w2500', // Endpoint Thumbnail HD
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://drive.google.com/uc?export=download&id=' + fileId) // Proxy
+    ];
 
+    var response = null;
+    var success = false;
+
+    for (var i = 0; i < endpoints.length; i++) {
       try {
-        response = await fetch(directUrl);
-        if (!response.ok) throw new Error('Direct fetch error');
-      } catch (err) {
-        response = await fetch(proxyUrl);
+        var res = await fetch(endpoints[i]);
+        if (res.ok) {
+          var testBlob = await res.blob();
+          // Pastikan hasil unduhan bukan halaman HTML error 403/Login
+          if (!testBlob.type.includes('text/html') && testBlob.size > 200) {
+            response = testBlob;
+            success = true;
+            break;
+          }
+        }
+      } catch (e) {
+        // Lanjut coba endpoint berikutnya jika gagal
       }
+    }
 
-      if (!response.ok) {
-        throw new Error('Gagal mengunduh dari Google Drive.');
-      }
+    if (!success || !response) {
+      el['fetch-gdrive-file'].disabled = false;
+      el['fetch-gdrive-file'].textContent = 'Ambil File';
+      showToast('Gagal mengambil file. Pastikan file berupa Gambar/Media dan disetel Publik.', 'error');
+      return;
+    }
 
-      var blob = await response.blob();
-      
-      // Jika hasil fetch berupa halaman HTML verifikasi Google, buka tab baru otomatis agar pengguna bisa langsung mendownloadnya
-      if (blob.type.includes('text/html') || blob.size < 500) {
-        window.open('https://drive.google.com/uc?export=download&confirm=t&id=' + fileId, '_blank');
-        throw new Error('Google Drive membatasi akses langsung. Tab unduhan otomatis dibuka, silakan pilih filenya.');
-      }
-
+    try {
+      var blob = response;
       var type = blob.type;
       var filename = 'gdrive_file';
 
@@ -291,19 +302,15 @@
       else if (type.includes('video/webm')) filename = 'gdrive_video.webm';
       else if (type.includes('audio/')) filename = 'gdrive_audio.wav';
       else if (type.includes('pdf')) filename = 'gdrive_document.pdf';
-      else filename = 'gdrive_file.bin';
+      else filename = 'gdrive_image.jpg';
 
-      var file = new File([blob], filename, { type: blob.type });
+      var file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
       addFiles([file]);
       el['gdrive-dialog'].close();
       el['gdrive-link-input'].value = '';
       showToast('Berhasil mengimpor file dari Google Drive!', 'success');
     } catch (error) {
-      showToast(error.message || 'Gagal mengambil file. Pastikan izin link disetel publik.', 'error');
-      // Fallback otomatis: jika masih diblokir browser, buka tab unduhan resmi supaya user tidak mentok
-      if (!error.message.includes('Tab unduhan')) {
-        window.open('https://drive.google.com/uc?export=download&confirm=t&id=' + fileId, '_blank');
-      }
+      showToast('Gagal memproses file Google Drive.', 'error');
     } finally {
       el['fetch-gdrive-file'].disabled = false;
       el['fetch-gdrive-file'].textContent = 'Ambil File';
