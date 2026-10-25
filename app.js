@@ -425,20 +425,28 @@
     return canvas.toDataURL('image/png');
   }
 
-  function setAuthMode(mode) {
+function setAuthMode(mode) {
     state.authMode = mode;
     var isReg = mode === 'register';
-    el['auth-heading'].textContent = isReg ? 'Buat Profil Offline' : 'Masuk ke Studio';
-    el['auth-description'].textContent = isReg ? 'Karya dan datamu hanya tersimpan di perangkat ini.' : 'Gunakan profil lokal yang sudah ada di perangkat ini.';
-    el['auth-submit-label'].textContent = isReg ? 'Buat profil dan masuk' : 'Masuk ke Studio';
-    el['auth-kicker'].textContent = isReg ? 'Sudah punya profil?' : 'Belum punya profil lokal?';
-    el['switch-copy'].textContent = isReg ? 'Masuk sekarang.' : 'Buat profil';
     
-    if (el['display-name'] && el['display-name'].parentElement) {
-       el['display-name'].parentElement.hidden = !isReg;
+    if (el['auth-heading']) el['auth-heading'].textContent = isReg ? 'Buat Profil Offline' : 'Masuk ke Studio';
+    if (el['auth-description']) el['auth-description'].textContent = isReg ? 'Karya dan datamu hanya tersimpan di perangkat ini.' : 'Gunakan profil lokal yang sudah ada di perangkat ini.';
+    if (el['auth-submit-label']) el['auth-submit-label'].textContent = isReg ? 'Buat profil dan masuk' : 'Masuk ke Studio';
+    if (el['auth-kicker']) el['auth-kicker'].textContent = isReg ? 'Sudah punya profil?' : 'Belum punya profil lokal?';
+    
+    if (el['switch-copy']) {
+      el['switch-copy'].textContent = isReg ? 'Masuk sekarang.' : 'Buat profil';
+    } else if (el['switch-auth-mode']) {
+      el['switch-auth-mode'].textContent = isReg ? 'Masuk sekarang.' : 'Buat profil';
     }
+    
+    var nameFieldContainer = document.querySelector('.auth-name-field') || (el['display-name'] && el['display-name'].parentElement);
+    if (nameFieldContainer) {
+       nameFieldContainer.hidden = !isReg;
+    }
+
     setAuthMessage('');
-    el['auth-form'].reset();
+    if (el['auth-form']) el['auth-form'].reset();
   }
 
   function setAuthMessage(text) { el['auth-message'].textContent = text; }
