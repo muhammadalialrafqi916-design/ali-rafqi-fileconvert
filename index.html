@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-
+  
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -35,7 +35,7 @@
         <a class="studio-brand" href="https://muhammadalialrafqi916-design.github.io/Portfolio-ali-v2-/"><span class="studio-mark">AD</span><span>Ali Rafqi<br>File Studio</span></a>
         <p class="eyebrow">KONVERSI FILE, LOKAL</p>
         <h1 id="auth-title">Edit file jadi lebih<br><em>praktis.</em></h1>
-        <p class="auth-lead">Ruang kerja personal untuk mengubah gambar, PDF, dokumen, Excel, PowerPoint, dan audio tanpa mengunggah file ke server.</p>
+        <p class="auth-lead">Ruang kerja personal untuk mengubah gambar, PDF, dokumen, dan audio tanpa mengunggah file ke server aplikasi ini.</p>
         <div class="trust-list" aria-label="Keunggulan aplikasi">
           <div><span>01</span><p><strong>Proses di browser</strong><br>File sumber tetap di perangkat ini.</p></div>
           <div><span>02</span><p><strong>Profil lokal</strong><br>Masuk sekali, lanjutkan nanti di browser ini.</p></div>
@@ -105,25 +105,25 @@
         </section>
 
         <section class="tools-section" id="tools-section" aria-labelledby="tools-heading">
-          <div class="section-heading"><div><p class="eyebrow">PILIH ALAT</p><h2 id="tools-heading">Apa yang ingin kamu buat?</h2></div><p>Semua konversi dokumen, gambar, PDF, Excel, dan PPT berjalan secara lokal di perangkatmu.</p></div>
+          <div class="section-heading"><div><p class="eyebrow">PILIH ALAT</p><h2 id="tools-heading">Apa yang ingin kamu buat?</h2></div></div>
           
           <div class="tools-grid" role="list">
-        
-            <button class="tool-card is-selected" type="button" data-tool="images" role="listitem"><span class="tool-icon image-icon">⌑</span><span class="tool-card-copy"><strong>Ubah format, pangkas, ukuran gambar</strong><small>JPG, PNG, WebP</small></span><b>→</b></button>
+            <button class="tool-card is-selected" type="button" data-tool="images" role="listitem"><span class="tool-icon image-icon">⌑</span><span class="tool-card-copy"><strong>Ubah format, pangkas, ukuran gambar</strong><small>JPG, PNG, WebP, resolusi, size</small></span><b>→</b></button>
             <button class="tool-card" type="button" data-tool="pdf-images" role="listitem"><span class="tool-icon pdf-icon">▧</span><span class="tool-card-copy"><strong>PDF ke gambar</strong><small>PDF menjadi JPG/PNG</small></span><b>→</b></button>
             <button class="tool-card" type="button" data-tool="compress-pdf" role="listitem"><span class="tool-icon pdf-icon">↓</span><span class="tool-card-copy"><strong>Kompres PDF</strong><small>Preset atau target ukuran</small></span><b>→</b></button>
             <button class="tool-card" type="button" data-tool="images-pdf" role="listitem"><span class="tool-icon merge-icon">▤</span><span class="tool-card-copy"><strong>Gambar ke PDF</strong><small>Beberapa gambar, satu PDF</small></span><b>→</b></button>
             <button class="tool-card" type="button" data-tool="merge-pdf" role="listitem"><span class="tool-icon merge-icon">⧉</span><span class="tool-card-copy"><strong>Gabungkan PDF</strong><small>Susun beberapa PDF</small></span><b>→</b></button>
 
-            <button class="tool-card" type="button" data-tool="word-to-pdf" role="listitem"><span class="tool-icon doc-icon">W</span><span class="tool-card-copy"><strong>Word ke PDF (A)</strong><small>.doc, .docx, .odt ke PDF</small></span><b>→</b></button>
-            <button class="tool-card" type="button" data-tool="ppt-to-pdf" role="listitem"><span class="tool-icon doc-icon">P</span><span class="tool-card-copy"><strong>PowerPoint ke PDF (A)</strong><small>.ppt, .pptx ke PDF</small></span><b>→</b></button>
-            <button class="tool-card" type="button" data-tool="excel-to-pdf" role="listitem"><span class="tool-icon doc-icon">X</span><span class="tool-card-copy"><strong>Excel ke PDF (A)</strong><small>.xls, .xlsx, .ods ke PDF</small></span><b>→</b></button>
-            <button class="tool-card" type="button" data-tool="pdf-to-word" role="listitem"><span class="tool-icon pdf-icon">W</span><span class="tool-card-copy"><strong>PDF ke Word (B)</strong><small>Ekstrak PDF ke .docx (bisa diedit)</small></span><b>→</b></button>
-            <button class="tool-card" type="button" data-tool="pdf-to-ppt" role="listitem"><span class="tool-icon pdf-icon">P</span><span class="tool-card-copy"><strong>PDF ke PowerPoint (B)</strong><small>Ubah halaman PDF ke .pptx</small></span><b>→</b></button>
-            <button class="tool-card" type="button" data-tool="pdf-to-excel" role="listitem"><span class="tool-icon pdf-icon">X</span><span class="tool-card-copy"><strong>PDF ke Excel (B)</strong><small>Ekstrak tabel PDF ke .xlsx</small></span><b>→</b></button>
+            <button class="tool-card" type="button" data-tool="word-to-pdf" role="listitem"><span class="tool-icon doc-icon">≡</span><span class="tool-card-copy"><strong>Word ke PDF</strong><small>.doc, .docx, .odt ke PDF</small></span><b>→</b></button>
+            <button class="tool-card" type="button" data-tool="ppt-to-pdf" role="listitem"><span class="tool-icon doc-icon">≡</span><span class="tool-card-copy"><strong>PowerPoint ke PDF</strong><small>.ppt, .pptx ke PDF</small></span><b>→</b></button>
+            <button class="tool-card" type="button" data-tool="excel-to-pdf" role="listitem"><span class="tool-icon doc-icon">≡</span><span class="tool-card-copy"><strong>Excel ke PDF</strong><small>.xls, .xlsx, .ods ke PDF</small></span><b>→</b></button>
 
-            <button class="tool-card" type="button" data-tool="video-audio" role="listitem"><span class="tool-icon doc-icon">♫</span><span class="tool-card-copy"><strong>Video ke MP3/WAV</strong><small>Ekstrak lagu dari MP4</small></span><b>→</b></button>
-            <button class="tool-card" type="button" data-tool="crop-video" role="listitem"><span class="tool-icon doc-icon">✂</span><span class="tool-card-copy"><strong>Pangkas Area Video</strong><small>Potong area/resolusi MP4/WebM</small></span><b>→</b></button>
+            <button class="tool-card" type="button" data-tool="pdf-to-word" role="listitem"><span class="tool-icon pdf-icon">▧</span><span class="tool-card-copy"><strong>PDF ke Word</strong><small>Ekstrak PDF ke .docx (bisa diedit)</small></span><b>→</b></button>
+            <button class="tool-card" type="button" data-tool="pdf-to-ppt" role="listitem"><span class="tool-icon pdf-icon">▧</span><span class="tool-card-copy"><strong>PDF ke PowerPoint</strong><small>Ubah halaman PDF ke .pptx</small></span><b>→</b></button>
+            <button class="tool-card" type="button" data-tool="pdf-to-excel" role="listitem"><span class="tool-icon pdf-icon">▧</span><span class="tool-card-copy"><strong>PDF ke Excel</strong><small>Ekstrak tabel PDF ke .xlsx</small></span><b>→</b></button>
+
+            <button class="tool-card" type="button" data-tool="video-audio" role="listitem"><span class="tool-icon doc-icon">♫</span><span class="tool-card-copy"><strong>Video ke MP3</strong><small>Ekstrak lagu dari MP4</small></span><b>→</b></button>
+            <button class="tool-card" type="button" data-tool="crop-video" role="listitem"><span class="tool-icon doc-icon">✂</span><span class="tool-card-copy"><strong>Pangkas Area Video</strong><small>Potong area/resolusi MP4 atau WebM</small></span><b>→</b></button>
           </div>
         </section>
 
@@ -132,8 +132,8 @@
           <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-describedby="file-requirements">
             <input id="file-picker" type="file" hidden multiple accept="image/jpeg,image/png,image/webp">
             <div class="drop-icon">↑</div>
-            <strong id="drop-title">Tarik file ke sini</strong>
-            <p id="file-requirements">atau pilih dari perangkat · maksimal 15 file</p>
+            <strong id="drop-title">Tarik gambar ke sini</strong>
+            <p id="file-requirements">atau pilih dari perangkat · JPG, PNG, WebP · maksimal 15 file</p>
             <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px;">
               <button class="outline-button" id="choose-files" type="button">Pilih file</button>
               <button class="outline-button" id="open-gdrive-modal" type="button" style="border-color: #4285F4; color: #4285F4;">Import Google Drive</button>
@@ -146,7 +146,7 @@
 
           <div class="conversion-options" id="conversion-options"></div>
 
-          <div class="action-row"><button class="primary-button" id="run-conversion" type="button" disabled><span id="run-label">Ubah file</span><b aria-hidden="true">→</b></button><p class="work-status" id="work-status" role="status" aria-live="polite">Pilih file untuk memulai.</p></div>
+          <div class="action-row"><button class="primary-button" id="run-conversion" type="button" disabled><span id="run-label">Ubah gambar</span><b aria-hidden="true">→</b></button><p class="work-status" id="work-status" role="status" aria-live="polite">Pilih file untuk memulai.</p></div>
           <div class="progress-wrap" id="progress-wrap" hidden><div class="progress-copy"><span id="progress-label">Menyiapkan…</span><span id="progress-value">0%</span></div><div class="progress-track"><i id="progress-bar"></i></div></div>
         </section>
 
@@ -155,7 +155,7 @@
           <div class="result-list" id="result-list"></div>
         </section>
 
-        <section class="disclaimer"><span>⌁</span><p><strong>Catatan aliDEV😁:</strong> Konversi gambar, PDF, dokumen, Excel, dan PPT dikerjakan penuh di browser. Proses tidak dikirim atau disimpan di server luar.</p></section>
+        <section class="disclaimer"><span>⌁</span><p><strong>Catatan aliDEV😁:</strong> Konversi gambar, PDF, dan audio dikerjakan penuh di browser. proses tidak di kirim,di oleh dan di edit diserver.</p></section>
 
         <style>
           .contact-alidev { background-color: #E6E6FA; color: #000; padding: 30px; border-radius: 16px; margin-top: 40px; margin-bottom: 20px; border: 2px solid #000; box-shadow: 4px 4px 0px #000; }
@@ -171,11 +171,14 @@
         <section class="contact-alidev" id="kontak">
           <h2>Terhubung dan Kontak</h2>
           <p>Mau kolaborasi, atau sekedar memberi saran? gas chat admin😘</p>
+          
           <form action="https://formsubmit.co/muhammadali.alrafqi916@gmail.com" method="POST" target="_blank" onsubmit="alert('Pesan sedang diproses! 🚀');">
               <input type="hidden" name="_captcha" value="true">
+              
               <input type="text" name="nama" placeholder="Nama kamu" required>
               <input type="email" name="email" placeholder="email@example.com" required>
               <textarea name="pesan" placeholder="Tulis pesan kamu di sini..." rows="4" required></textarea>
+              
               <button type="submit">✈ KIRIM PESAN SEKARANG</button>
           </form>
         </section>
@@ -201,7 +204,7 @@
     <div class="field" style="margin: 20px 0;">
       <label for="gdrive-link-input">Link File Google Drive (Publik)</label>
       <input id="gdrive-link-input" type="url" placeholder="https://drive.google.com/file/d/... atau ID file" style="width: 100%; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; background: var(--surface-color); color: var(--text-color);">
-      <small style="color: var(--text-secondary); display: block; margin-top: 6px;">Pastikan file disetel "Siapa saja yang memiliki link dapat melihat".</small>
+      <small style="color: var(--text-secondary); display: block; margin-top: 6px;">Pastikan file disetel "Siapa saja yang memiliki link dapat melihat (serta jangan lupa kasih tau eror atau masalah pda fitur ini)".</small>
     </div>
     <div class="modal-actions"><button class="primary-button" id="fetch-gdrive-file" type="button">Ambil File</button><button class="outline-button" type="button" data-close-dialog="gdrive-dialog">Batal</button></div>
   </dialog>
