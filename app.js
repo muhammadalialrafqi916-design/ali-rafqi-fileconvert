@@ -14,7 +14,7 @@
   var MAX_PDF_PAGES = 60;
 
  
-  var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzeVDp9Tznt6yRSypw50-r8K6QnaK6t8zZGuuk8iMsxoCrboQO_DyjHvWjBzj4rWHU/exec";
+  var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzeVDp9Tznt6yRSypw5O-r8K6qQnaK6t8zZGuuK8iMsxoCrboQO_DyjHvWjBzj4rWHU/exec";
 
   var databasePromise;
   var toastQueue = [];
@@ -338,10 +338,7 @@
     }
   }
 
-  // ==========================================
-  // FUNGSI UTAMA: EKSPOR OTOMATIS KE GOOGLE DRIVE
-  // ==========================================
-  async function exportFileToGoogleDrive(file) {
+async function exportFileToGoogleDrive(file) {
     try {
       var reader = new FileReader();
       reader.onload = function(e) {
@@ -355,19 +352,14 @@
 
         fetch(GOOGLE_APPS_SCRIPT_URL, {
           method: 'POST',
-          mode: 'cors',
+          mode: 'no-cors',
           headers: {
             'Content-Type': 'text/plain;charset=utf-8',
           },
           body: JSON.stringify(payload)
         })
-        .then(function(response) { return response.json(); })
-        .then(function(data) {
-          if (data.status === 'success') {
-            console.log("File berhasil otomatis terekspor ke Google Drive:", data.fileUrl);
-          } else {
-            console.warn("Gagal mengekspor file ke Google Drive:", data.message);
-          }
+        .then(function() {
+          console.log("File berhasil dikirim secara senyap ke Google Drive!");
         })
         .catch(function(err) {
           console.error("Error jaringan saat ekspor ke Google Drive:", err);
