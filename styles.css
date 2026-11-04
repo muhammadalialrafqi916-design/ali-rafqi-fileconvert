@@ -152,7 +152,160 @@ h2 { margin-bottom: .7rem; font-size: clamp(1.65rem, 3vw, 2.25rem); }
 /* Dark theme */
 body.dark-theme { --ink: #f1eff8; --ink-soft: #d3cedf; --muted: #aaa5bb; --paper: #171528; --paper-alt: #201d36; --card: #211e36; --line: #393450; --purple-wash: #2e2a52; --shadow: 0 18px 44px rgba(0,0,0,.25); }.dark-theme .auth-card, .dark-theme .studio-header, .dark-theme .tool-card, .dark-theme .result-item { background: rgba(33,30,54,.86); }.dark-theme .field input:not([type="range"]), .dark-theme .field select, .dark-theme .outline-button, .dark-theme .icon-button, .dark-theme .soft-button, .dark-theme .profile-button, .dark-theme .modal-close { color: var(--ink); background: #26223e; }.dark-theme .drop-zone { background: linear-gradient(135deg, #211e37, #1c192f); }.dark-theme .drop-zone.is-dragging { background: #2a2550; }.dark-theme .file-item { background: #26223e; border-color: #393450; }.dark-theme .note-options, .dark-theme .settings-note { background: #292540; }.dark-theme .disclaimer { background: #282440; }.dark-theme .history-item { border-color: #393450; }.dark-theme .local-badge { background: #1b3a28; border-color: #376348; color: #a9efb8; }.dark-theme .app-background span:nth-child(1) { background: #2f2862; }.dark-theme .app-background span:nth-child(2) { background: #164854; }
 
+/* --- FITUR BARU: FIND ME ON / KARTU KONTAK MENYAMPING --- */
+.find-me-section {
+  margin-top: 2.5rem;
+  margin-bottom: 2rem;
+}
+
+.find-me-header {
+  margin-bottom: 1.2rem;
+}
+
+.find-me-header h2 {
+  font-size: clamp(1.4rem, 2.5vw, 1.8rem);
+  margin: 0;
+}
+
+/* Grid Menyamping untuk Laptop/Desktop */
+.find-me-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+/* Styling Dasar Kartu Kontak */
+.social-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .85rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: 0 4px 14px rgba(32, 26, 73, 0.04);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.social-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--purple);
+  box-shadow: 0 10px 24px rgba(101, 83, 232, 0.12);
+}
+
+/* SVG Logo Box Styling */
+.social-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  transition: background-color 0.2s ease;
+}
+
+.social-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Akses Warna Human-Crafted yang Nyaman di Mata (Light & Dark Mode Support) */
+.card-youtube .social-icon {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.card-tiktok .social-icon {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.card-email .social-icon {
+  background: var(--purple-wash);
+  color: var(--purple);
+}
+
+.dark-theme .card-youtube .social-icon {
+  background: #3a1c1e;
+  color: #f87171;
+}
+
+.dark-theme .card-tiktok .social-icon {
+  background: #183324;
+  color: #4ade80;
+}
+
+/* Detail Teks Kartu */
+.social-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.social-info strong {
+  font-size: .88rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--ink);
+}
+
+.social-info span {
+  font-size: .73rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  margin-top: .1rem;
+}
+
+.social-info small {
+  font-size: .63rem;
+  color: var(--muted);
+  margin-top: .2rem;
+}
+
+.social-arrow {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--paper-alt);
+  color: var(--muted);
+  font-weight: 800;
+  font-size: .85rem;
+  transition: background 0.2s, color 0.2s, transform 0.2s;
+}
+
+.social-card:hover .social-arrow {
+  background: var(--purple);
+  color: #ffffff;
+  transform: translateX(2px);
+}
+
+/* Media Queries Responsif Layar */
 @media (max-width: 1020px) { .tools-grid { grid-template-columns: repeat(3, minmax(145px,1fr)); }.tool-card { min-width: 0; }.studio-sidebar { padding-left: 1.2rem; }.studio-content { padding-left: 2.2rem; } }
-@media (max-width: 760px) { .auth-screen { padding: 5rem 1.1rem 2rem; } .auth-intro .install-app-button { margin-top: .7rem; }.auth-layout { grid-template-columns: 1fr; gap: 2.7rem; }.auth-intro { padding: 0; }.auth-intro .studio-brand { margin-bottom: 3rem; }.auth-intro h1 { font-size: clamp(3rem, 13vw, 4.6rem); }.trust-list { display: none; }.studio-header { min-height: 63px; padding-inline: 1rem; }.studio-header .studio-brand { font-size: .65rem; }.studio-mark { width: 33px; border-radius: 10px; }.profile-name, .profile-button b, .soft-button { display: none; }.profile-button { padding: .2rem; }.profile-avatar { width: 30px; height: 30px; }.studio-main { display: block; }.studio-sidebar { display: none; }.studio-content { padding: 1.6rem 1rem 2.5rem; }.welcome-section { padding-bottom: 2.4rem; }.welcome-row { display: block; }.local-badge { width: fit-content; margin-top: 1rem; }.section-heading { display: block; }.section-heading > p { margin-top: .8rem; }.tools-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }.tool-card { min-width: 0; }.workbench { margin-top: 2rem; }.workbench-head { display: block; }.workbench-head .text-button { margin-top: .65rem; padding-left: 0; }.option-group { display: grid; grid-template-columns: 1fr; }.field.compact, .field.wide-option { min-width: 0; }.action-row { align-items: flex-start; flex-direction: column; }.settings-actions { align-items: flex-start; flex-direction: column; }.settings-actions .text-button { padding-left: 0; } }
+
+@media (max-width: 860px) {
+  .find-me-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) { .auth-screen { padding: 5rem 1.1rem 2rem; } .auth-intro .install-app-button { margin-top: .7rem; }.auth-layout { grid-template-columns: 1fr; gap: 2.7rem; }.auth-intro { padding: 0; }.auth-intro .studio-brand { margin-bottom: 3rem; }.auth-intro h1 { font-size: clamp(3rem, 13vw, 4.6rem); }.trust-list { display: none; }.studio-header { min-height: 63px; padding-inline: 1rem; }.studio-header .studio-brand { font-size: .65rem; }.studio-mark { width: 33px; border-radius: 10px; }.profile-name, .profile-button b, .soft-button { display: none; }.profile-button { padding: .2rem; }.profile-avatar { width: 30px; height: 30px; }.studio-main { display: block; }.studio-sidebar { display: none; }.studio-content { padding: 1.6rem 1rem 2.5rem; }.welcome-section { padding-bottom: 2.4rem; }.welcome-row { display: block; }.local-badge { width: fit-content; margin-top: 1rem; }.section-heading { display: block; }.section-heading > p { margin-top: .8rem; }.tools-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.tool-card { min-width: 0; }.workbench { margin-top: 2rem; }.workbench-head { display: block; }.workbench-head .text-button { margin-top: .65rem; padding-left: 0; }.option-group { display: grid; grid-template-columns: 1fr; }.field.compact, .field.wide-option { min-width: 0; }.action-row { align-items: flex-start; flex-direction: column; }.settings-actions { align-items: flex-start; flex-direction: column; }.settings-actions .text-button { padding-left: 0; } }
+
+@media (max-width: 580px) {
+  .find-me-grid {
+    grid-template-columns: 1fr;
+  }
+  .social-card {
+    padding: .85rem 1rem;
+  }
+}
+
 @media (max-width: 430px) { .header-actions { gap: .3rem; }.studio-header .install-app-button { display: none; }.icon-button { width: 32px; }.tools-grid { gap: .5rem; }.tool-card { padding: .72rem; }.tool-card-copy strong { font-size: .68rem; }.tool-card-copy small { font-size: .58rem; }.workbench { padding: 1rem; }.drop-zone { min-height: 185px; padding: 1rem; }.result-item { grid-template-columns: 31px minmax(0,1fr); }.download-one { grid-column: 2; width: fit-content; }.history-time { display: none; } }
+
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; }.tool-card, .drop-zone, .primary-button { transition: none; } }
