@@ -152,7 +152,7 @@ h2 { margin-bottom: .7rem; font-size: clamp(1.65rem, 3vw, 2.25rem); }
 /* Dark theme */
 body.dark-theme { --ink: #f1eff8; --ink-soft: #d3cedf; --muted: #aaa5bb; --paper: #171528; --paper-alt: #201d36; --card: #211e36; --line: #393450; --purple-wash: #2e2a52; --shadow: 0 18px 44px rgba(0,0,0,.25); }.dark-theme .auth-card, .dark-theme .studio-header, .dark-theme .tool-card, .dark-theme .result-item { background: rgba(33,30,54,.86); }.dark-theme .field input:not([type="range"]), .dark-theme .field select, .dark-theme .outline-button, .dark-theme .icon-button, .dark-theme .soft-button, .dark-theme .profile-button, .dark-theme .modal-close { color: var(--ink); background: #26223e; }.dark-theme .drop-zone { background: linear-gradient(135deg, #211e37, #1c192f); }.dark-theme .drop-zone.is-dragging { background: #2a2550; }.dark-theme .file-item { background: #26223e; border-color: #393450; }.dark-theme .note-options, .dark-theme .settings-note { background: #292540; }.dark-theme .disclaimer { background: #282440; }.dark-theme .history-item { border-color: #393450; }.dark-theme .local-badge { background: #1b3a28; border-color: #376348; color: #a9efb8; }.dark-theme .app-background span:nth-child(1) { background: #2f2862; }.dark-theme .app-background span:nth-child(2) { background: #164854; }
 
-/* --- FITUR BARU: FIND ME ON / KARTU KONTAK MENYAMPING --- */
+
 .find-me-section {
   margin-top: 2.5rem;
   margin-bottom: 2rem;
@@ -167,14 +167,12 @@ body.dark-theme { --ink: #f1eff8; --ink-soft: #d3cedf; --muted: #aaa5bb; --paper
   margin: 0;
 }
 
-/* Grid Menyamping untuk Laptop/Desktop */
 .find-me-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
-/* Styling Dasar Kartu Kontak */
 .social-card {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) auto;
@@ -196,7 +194,6 @@ body.dark-theme { --ink: #f1eff8; --ink-soft: #d3cedf; --muted: #aaa5bb; --paper
   box-shadow: 0 10px 24px rgba(101, 83, 232, 0.12);
 }
 
-/* SVG Logo Box Styling */
 .social-icon {
   display: grid;
   place-items: center;
@@ -211,7 +208,6 @@ body.dark-theme { --ink: #f1eff8; --ink-soft: #d3cedf; --muted: #aaa5bb; --paper
   height: 20px;
 }
 
-/* Akses Warna Human-Crafted yang Nyaman di Mata (Light & Dark Mode Support) */
 .card-youtube .social-icon {
   background: #fef2f2;
   color: #dc2626;
@@ -237,7 +233,6 @@ body.dark-theme { --ink: #f1eff8; --ink-soft: #d3cedf; --muted: #aaa5bb; --paper
   color: #4ade80;
 }
 
-/* Detail Teks Kartu */
 .social-info {
   display: flex;
   flex-direction: column;
@@ -273,7 +268,7 @@ body.dark-theme { --ink: #f1eff8; --ink-soft: #d3cedf; --muted: #aaa5bb; --paper
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--paper-alt);
+  background: transparent;
   color: var(--muted);
   font-weight: 800;
   font-size: .85rem;
@@ -281,8 +276,8 @@ body.dark-theme { --ink: #f1eff8; --ink-soft: #d3cedf; --muted: #aaa5bb; --paper
 }
 
 .social-card:hover .social-arrow {
-  background: var(--purple);
-  color: #ffffff;
+  background: transparent !important;
+  color: var(--purple);
   transform: translateX(2px);
 }
 
