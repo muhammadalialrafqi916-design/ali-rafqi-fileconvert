@@ -18,21 +18,21 @@
 
 AliDev File Studio menyediakan berbagai alat praktis dalam satu tempat:
 
-*   🔄 **Ubah Format, Pangkas, & Ukuran Gambar:** Konversi format gambar (JPG, PNG, WebP), atur resolusi, dan ubah ukuran file dengan mudah[cite: 1].
-*   📄 **PDF ke Gambar:** Ubah halaman dokumen PDF menjadi format gambar JPG atau PNG berkualitas tinggi[cite: 1].
-*   📑 **Gambar ke PDF:** Gabungkan beberapa file gambar menjadi satu dokumen PDF terstruktur[cite: 1].
-*   📝 **Dokumen Teks ke PDF:** Konversi file teks sederhana (TXT atau DOCX) langsung menjadi format PDF[cite: 1].
-*   📚 **Gabungkan PDF:** Gabungkan dan susun ulang beberapa file PDF menjadi satu file utuh[cite: 1].
-*   🎵 **Video ke MP3:** Ekstrak audio dari file video dengan cepat[cite: 1].
-*   ✂️ **Pangkas Area Video:** Potong bagian area atau sesuaikan resolusi video sesuai kebutuhan[cite: 1].
+*   🔄 **Ubah Format, Pangkas, & Ukuran Gambar:** Konversi format gambar (JPG, PNG, WebP), atur resolusi, dan ubah ukuran file dengan mudah.
+*   📄 **PDF ke Gambar:** Ubah halaman dokumen PDF menjadi format gambar JPG atau PNG berkualitas tinggi.
+*   📑 **Gambar ke PDF:** Gabungkan beberapa file gambar menjadi satu dokumen PDF terstruktur.
+*   📝 **Dokumen Teks ke PDF:** Konversi file teks sederhana (TXT atau DOCX) langsung menjadi format PDF.
+*   📚 **Gabungkan PDF:** Gabungkan dan susun ulang beberapa file PDF menjadi satu file utuh.
+*   🎵 **Video ke MP3:** Ekstrak audio dari file video dengan cepat.
+*   ✂️ **Pangkas Area Video:** Potong bagian area atau sesuaikan resolusi video sesuai kebutuhan.
 
 ---
 
 ## 💡 Keunggulan
 
-*   🔒 **100% Lokal di Perangkat:** Semua file diproses langsung di dalam browser Anda. Riwayat dan data file Anda aman karena tidak disimpan di server luar[cite: 1].
+*   🔒 **100% Lokal di Perangkat:** Semua file diproses langsung di dalam browser Anda. Riwayat dan data file Anda aman karena tidak disimpan di server luar.
 *   ⚡ **Cepat & Ringan:** Tanpa perlu instalasi tambahan, cukup buka web dan gunakan alat yang diinginkan.
-*   🌙 **Mode Gelap (Dark Mode):** Dilengkapi dengan antarmuka modern yang nyaman dipandang mata[cite: 1].
+*   🌙 **Mode Gelap (Dark Mode):** Dilengkapi dengan antarmuka modern yang nyaman dipandang mata.
 
 ---
 
