@@ -31,15 +31,15 @@ AliDev File Studio menyediakan berbagai alat praktis dalam satu tempat:
 ## 💡 Keunggulan
 
 *   🔒 **100% Lokal di Perangkat:** Semua file diproses langsung di dalam browser Anda. Riwayat dan data file Anda aman,beberapa riwayat file hanya di simpan sementara untuk mendukung fitur riwayat file.
-*   ⚡ **Cepat & Ringan:** Tanpa perlu instalasi tambahan, cukup buka web dan gunakan alat yang diinginkan.
-*   🌙 **Mode Gelap (Dark Mode):** Dilengkapi dengan antarmuka modern yang nyaman dipandang mata.
+*   ⚡ *Cepat & Ringan:* Tanpa perlu instalasi tambahan, cukup buka web dan gunakan alat yang diinginkan.
+*   🌙 *Mode Gelap (Dark Mode):*Dilengkapi dengan antarmuka modern yang nyaman dipandang mata.
 
 ---
 
 ## 🌐 Akses website 
 
 Coba aplikasinya secara langsung melalui tautan berikut:
-👉 [https://alidev-fileconvert.vercel.app/](https://alidev-fileconvert.vercel.app/)[cite: 1]
+👉 [https://alidev-fileconvert.vercel.app/](https://alidev-fileconvert.vercel.app/)
 
 ---
 
