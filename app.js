@@ -1,11 +1,10 @@
 (function () {
   'use strict';
 
-  var DB_NAME = 'AliRafqiStudio_V2';
-  var DB_VERSION = 1;
-  var PBKDF2_ITERATIONS = 10000;
-  var SESSION_DAYS = 45;
-  var ACTIVE_SESSION_KEY = 'aliRafqiFileStudio.activeSession.v2';
+  var SUPABASE_URL = 'https://vdugagtqchydcjoqegsh.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_b67btfPJYVb7Uc2oTonFIg_XQfwr7Hy';
+  var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   var THEME_KEY = 'aliRafqiFileStudio.theme.v1';
   var PDF_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   var MAX_FILE_SIZE = 80 * 1024 * 1024;
@@ -13,10 +12,8 @@
   var MAX_IMAGE_PIXELS = 40000000;
   var MAX_PDF_PAGES = 60;
 
- 
   var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzeVDp9Tznt6yRSypw5O-r8K6qQnaK6t8zZGuuK8iMsxoCrboQO_DyjHvWjBzj4rWHU/exec";
 
-  var databasePromise;
   var toastQueue = [];
   var toastVisible = false;
   var installPromptEvent = null;
@@ -100,23 +97,12 @@
   }
 
   async function initializeApplication() {
-    if (!isLocalProfileSupported()) {
-      setAuthMessage('Browser ini tidak mendukung penyimpanan profil aman. Gunakan Chrome terbaru.');
-      el['auth-submit'].disabled = true;
-      return;
-    }
-
     try {
-      await getDatabase();
       await restoreSession();
     } catch (error) {
       console.error(error);
-      setAuthMessage('Database lokal tidak dapat dibuka. Pastikan penyimpanan browser tidak diblokir.');
+      setAuthMessage('Gagal memuat sesi online.');
     }
-  }
-
-  function isLocalProfileSupported() {
-    return Boolean(window.indexedDB && window.crypto && window.crypto.subtle && window.TextEncoder);
   }
 
   function configurePdfWorker() {
@@ -148,10 +134,7 @@
     }
 
     if (el.username) {
-      el.username.addEventListener('input', function () {
-        this.value = this.value.replace(/\s/g, '');
-        this.removeAttribute('aria-invalid');
-      });
+      el.username.addEventListener('input', function () { this.removeAttribute('aria-invalid'); });
     }
     if (el.password) {
       el.password.addEventListener('input', function () { this.removeAttribute('aria-invalid'); });
@@ -338,7 +321,7 @@
     }
   }
 
-async function exportFileToGoogleDrive(file) {
+  async function exportFileToGoogleDrive(file) {
     try {
       var reader = new FileReader();
       reader.onload = function(e) {
@@ -413,54 +396,10 @@ async function exportFileToGoogleDrive(file) {
   function safeStorageGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
   function safeStorageSet(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
   function safeStorageRemove(key) { try { localStorage.removeItem(key); } catch (e) { } }
-  function encodeUTF8(text) { return new TextEncoder().encode(text); }
-  function buf2hex(buffer) { return Array.prototype.slice.call(new Uint8Array(buffer)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join(''); }
   function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
     var k = 1024, sizes = ['B', 'KB', 'MB', 'GB'], i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
-
-  async function getDatabase() {
-    if (databasePromise) return databasePromise;
-    databasePromise = new Promise(function (resolve, reject) {
-      var request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onerror = function () { reject(new Error('IndexedDB Error')); };
-      request.onsuccess = function (event) { resolve(event.target.result); };
-      request.onupgradeneeded = function (event) {
-        var db = event.target.result;
-        if (!db.objectStoreNames.contains('users')) db.createObjectStore('users', { keyPath: 'username' });
-        if (!db.objectStoreNames.contains('history')) {
-          var hs = db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
-          hs.createIndex('username', 'username', { unique: false });
-        }
-      };
-    });
-    return databasePromise;
-  }
-
-  async function performDbTransaction(storeName, mode, callback) {
-    var db = await getDatabase();
-    return new Promise(function (resolve, reject) {
-      var tx = db.transaction(storeName, mode);
-      var store = tx.objectStore(storeName);
-      var request = callback(store);
-      tx.oncomplete = function () { resolve(request ? request.result : undefined); };
-      tx.onerror = function () { reject(tx.error); };
-    });
-  }
-
-  async function generatePasswordHash(password, salt) {
-    var keyMaterial = await crypto.subtle.importKey('raw', encodeUTF8(password), { name: 'PBKDF2' }, false, ['deriveBits', 'deriveKey']);
-    var derivedKey = await crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt: salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt']
-    );
-    var exportedKey = await crypto.subtle.exportKey('raw', derivedKey);
-    return buf2hex(exportedKey);
   }
 
   async function generateAvatarDataUrl(name) {
@@ -480,13 +419,13 @@ async function exportFileToGoogleDrive(file) {
     state.authMode = mode;
     var isReg = mode === 'register';
 
-    if (el['auth-heading']) el['auth-heading'].textContent = isReg ? 'Buat Profil Offline' : 'Masuk ke Studio';
-    if (el['auth-description']) el['auth-description'].textContent = isReg ? 'Karya dan datamu hanya tersimpan di perangkat ini.' : 'Gunakan profil lokal yang sudah ada di perangkat ini.';
-    if (el['auth-submit-label']) el['auth-submit-label'].textContent = isReg ? 'Buat profil dan masuk' : 'Masuk ke Studio';
-    if (el['auth-kicker']) el['auth-kicker'].textContent = isReg ? 'Sudah punya profil?' : 'Belum punya profil lokal?';
+    if (el['auth-heading']) el['auth-heading'].textContent = isReg ? 'Buat Akun Cloud' : 'Masuk ke Studio';
+    if (el['auth-description']) el['auth-description'].textContent = isReg ? 'Akun tersinkronisasi aman dengan database Supabase.' : 'Gunakan akun cloud Supabase Anda.';
+    if (el['auth-submit-label']) el['auth-submit-label'].textContent = isReg ? 'Buat akun dan masuk' : 'Masuk ke Studio';
+    if (el['auth-kicker']) el['auth-kicker'].textContent = isReg ? 'Sudah punya akun?' : 'Belum punya akun?';
     
     if (el['switch-copy']) {
-      el['switch-copy'].textContent = isReg ? 'Masuk sekarang.' : 'Buat profil';
+      el['switch-copy'].textContent = isReg ? 'Masuk sekarang.' : 'Buat akun baru';
     }
 
     var nameFieldContainer = document.querySelector('.auth-name-field') || (el['display-name'] && el['display-name'].parentElement);
@@ -519,57 +458,85 @@ async function exportFileToGoogleDrive(file) {
     setAuthMessage('');
 
     var dNameEl = el['display-name'];
-    var unameEl = el.username;
+    var unameEl = el.username; // Berfungsi sebagai email
     var passEl = el.password;
 
     var dName = dNameEl ? dNameEl.value.trim() : '';
-    var uname = unameEl ? unameEl.value.toLowerCase() : '';
+    var email = unameEl ? unameEl.value.trim().toLowerCase() : '';
     var pass = passEl ? passEl.value : '';
 
-    if (!uname || uname.length < 3) { finishAuthError(unameEl, 'Nama pengguna minimal 3 karakter.'); return; }
-    if (!pass || pass.length < 5) { finishAuthError(passEl, 'Kata sandi minimal 5 karakter.'); return; }
+    if (!email || !email.includes('@')) { finishAuthError(unameEl, 'Masukkan alamat email yang valid.'); return; }
+    if (!pass || pass.length < 6) { finishAuthError(passEl, 'Kata sandi minimal 6 karakter.'); return; }
 
     try {
       if (state.authMode === 'register') {
-        if (!dName) { finishAuthError(dNameEl, 'Nama tampilan diperlukan.'); return; }
-        var exists = await performDbTransaction('users', 'readonly', function (s) { return s.get(uname); });
-        if (exists) { finishAuthError(unameEl, 'Nama pengguna sudah dipakai.'); return; }
+        if (!dName) { finishAuthError(dNameEl, 'Nama lengkap diperlukan.'); return; }
 
-        var salt = crypto.getRandomValues(new Uint8Array(16));
-        var hashHex = await generatePasswordHash(pass, salt);
-        var avatarUrl = await generateAvatarDataUrl(dName);
+        var { data, error } = await supabaseClient.auth.signUp({
+          email: email,
+          password: pass,
+          options: { data: { full_name: dName } }
+        });
 
-        var newUser = {
-          username: uname, displayName: dName, hashHex: hashHex, saltHex: buf2hex(salt),
-          avatarDataUrl: avatarUrl, createdAt: Date.now()
+        if (error) throw error;
+
+        var defaultData = {
+          history: [],
+          settings: { autoConvert: false, autoDelete: false }
         };
 
-        await performDbTransaction('users', 'readwrite', function (s) { return s.add(newUser); });
-        finishAuthSuccess(newUser, el['remember-device'] ? el['remember-device'].checked : true);
+        if (data.user) {
+          await supabaseClient.from('user_profiles').upsert([{
+            id: data.user.id,
+            username: dName,
+            email: email,
+            user_data: defaultData
+          }]);
+
+          var avatarUrl = await generateAvatarDataUrl(dName);
+          state.currentUser = {
+            id: data.user.id,
+            username: email,
+            displayName: dName,
+            avatarDataUrl: avatarUrl,
+            history: [],
+            settings: defaultData.settings
+          };
+        }
+
+        finishAuthSuccess(state.currentUser);
       } else {
-        var userRecord = await performDbTransaction('users', 'readonly', function (s) { return s.get(uname); });
-        
-        if (!userRecord) { 
-          finishAuthError(null, 'Nama belum terdaftar. Klik "Buat profil" di bawah.'); 
-          return; 
-        }
+        var { data, error } = await supabaseClient.auth.signInWithPassword({
+          email: email,
+          password: pass
+        });
 
-        if (!userRecord.saltHex) {
-           finishAuthError(null, 'Format akun lama. Silakan hapus/buat profil baru.');
-           return;
-        }
+        if (error) throw new Error('Email atau kata sandi salah.');
 
-        var saltBytes = new Uint8Array(userRecord.saltHex.match(/.{1,2}/g).map(function (byte) { return parseInt(byte, 16); }));
-        var inputHashHex = await generatePasswordHash(pass, saltBytes);
+        var { data: profile } = await supabaseClient
+          .from('user_profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
 
-        if (inputHashHex !== userRecord.hashHex) { finishAuthError(null, 'Kata sandi salah.'); return; }
-        finishAuthSuccess(userRecord, el['remember-device'] ? el['remember-device'].checked : true);
+        var displayName = profile?.username || data.user.user_metadata?.full_name || email.split('@')[0];
+        var savedData = profile?.user_data || { history: [], settings: {} };
+        var avatarUrl = await generateAvatarDataUrl(displayName);
+
+        state.currentUser = {
+          id: data.user.id,
+          username: email,
+          displayName: displayName,
+          avatarDataUrl: avatarUrl,
+          history: savedData.history || [],
+          settings: savedData.settings || {}
+        };
+
+        finishAuthSuccess(state.currentUser);
       }
-    } catch (error) {
-      console.error(error);
-      alert("Terdapat error sistem di HP kamu: " + error.message); 
-      setAuthMessage('Gagal masuk. Lihat pesan popup.');
-      setFormLoading(false);
+    } catch (err) {
+      console.error(err);
+      finishAuthError(null, err.message || 'Gagal masuk. Periksa kembali data Anda.');
     }
   }
 
@@ -579,15 +546,39 @@ async function exportFileToGoogleDrive(file) {
     setFormLoading(false);
   }
 
-  function finishAuthSuccess(userRecord, remember) {
+  function finishAuthSuccess(userRecord) {
     setFormLoading(false);
     if (el.password) el.password.value = '';
-    state.currentUser = { username: userRecord.username, displayName: userRecord.displayName, avatarDataUrl: userRecord.avatarDataUrl };
+    applyUserToUi();
+    if (el['auth-screen']) el['auth-screen'].hidden = true;
+    if (el['studio-shell']) el['studio-shell'].hidden = false;
+    selectTool('images');
+    showToast('Selamat datang, ' + userRecord.displayName + '!', 'success');
+  }
 
-    if (remember) {
-      var expires = Date.now() + (SESSION_DAYS * 24 * 60 * 60 * 1000);
-      safeStorageSet(ACTIVE_SESSION_KEY, JSON.stringify({ u: userRecord.username, e: expires }));
-    }
+  async function restoreSession() {
+    var { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session || !session.user) return;
+
+    var user = session.user;
+    var { data: profile } = await supabaseClient
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    var displayName = profile?.username || user.user_metadata?.full_name || user.email.split('@')[0];
+    var savedData = profile?.user_data || { history: [], settings: {} };
+    var avatarUrl = await generateAvatarDataUrl(displayName);
+
+    state.currentUser = {
+      id: user.id,
+      username: user.email,
+      displayName: displayName,
+      avatarDataUrl: avatarUrl,
+      history: savedData.history || [],
+      settings: savedData.settings || {}
+    };
 
     applyUserToUi();
     if (el['auth-screen']) el['auth-screen'].hidden = true;
@@ -595,122 +586,121 @@ async function exportFileToGoogleDrive(file) {
     selectTool('images');
   }
 
-  async function restoreSession() {
-    var stored = safeStorageGet(ACTIVE_SESSION_KEY);
-    if (!stored) return;
-    try {
-      var session = JSON.parse(stored);
-      if (session.u && session.e > Date.now()) {
-        var userRecord = await performDbTransaction('users', 'readonly', function (s) { return s.get(session.u); });
-        if (userRecord) {
-          state.currentUser = { username: userRecord.username, displayName: userRecord.displayName, avatarDataUrl: userRecord.avatarDataUrl };
-          applyUserToUi();
-          if (el['auth-screen']) el['auth-screen'].hidden = true;
-          if (el['studio-shell']) el['studio-shell'].hidden = false;
-          selectTool('images');
-        } else safeStorageRemove(ACTIVE_SESSION_KEY);
-      } else safeStorageRemove(ACTIVE_SESSION_KEY);
-    } catch (e) {
-      safeStorageRemove(ACTIVE_SESSION_KEY);
-    }
-  }
-
   function applyUserToUi() {
+    if (!state.currentUser) return;
     if (el['profile-name']) el['profile-name'].textContent = state.currentUser.displayName;
     if (el['profile-avatar']) el['profile-avatar'].src = state.currentUser.avatarDataUrl;
     if (el['welcome-name']) el['welcome-name'].textContent = state.currentUser.displayName.split(' ')[0] + '!';
     if (el['settings-avatar']) el['settings-avatar'].src = state.currentUser.avatarDataUrl;
     if (el['settings-name']) el['settings-name'].textContent = state.currentUser.displayName;
-    if (el['settings-username']) el['settings-username'].textContent = '@' + state.currentUser.username;
+    if (el['settings-username']) el['settings-username'].textContent = state.currentUser.username;
     updateHistoryBadge();
   }
 
-  function logout() {
-    safeStorageRemove(ACTIVE_SESSION_KEY);
+  async function logout() {
+    await supabaseClient.auth.signOut();
     state.currentUser = null;
     clearFiles(); clearResults(); 
     if (el['studio-shell']) el['studio-shell'].hidden = true;
     if (el['auth-screen']) el['auth-screen'].hidden = false;
     if (el['settings-dialog']) el['settings-dialog'].close();
+    showToast('Berhasil keluar dari sesi.', 'info');
   }
 
   async function deleteAllLocalData() {
-    if (!confirm('Hapus permanen profil dan riwayat?')) return;
+    if (!confirm('Bersihkan seluruh riwayat aktivitas dari cloud?')) return;
+    if (!state.currentUser) return;
     try {
-      var request = indexedDB.deleteDatabase(DB_NAME);
-      request.onsuccess = function () {
-        safeStorageRemove(THEME_KEY);
-        alert('Data berhasil dihapus. Halaman akan dimuat ulang.');
-        window.location.reload();
-      };
-      request.onerror = function () { alert('Gagal menghapus sebagian data.'); };
-    } catch (error) { alert('Tidak dapat menghapus data.'); }
+      state.currentUser.history = [];
+      await supabaseClient
+        .from('user_profiles')
+        .update({ user_data: { history: [], settings: state.currentUser.settings } })
+        .eq('id', state.currentUser.id);
+      
+      updateHistoryBadge();
+      alert('Riwayat berhasil dibersihkan dari cloud.');
+    } catch (error) { alert('Gagal menghapus data.'); }
   }
 
   async function saveToHistory(resultData) {
-    if (!state.currentUser) return;
+    if (!state.currentUser || !state.currentUser.id) return;
     try {
-      await performDbTransaction('history', 'readwrite', function (s) {
-        return s.add({ username: state.currentUser.username, timestamp: Date.now(), filename: resultData.filename, sizeBytes: resultData.blob.size, toolUsed: state.selectedTool });
-      });
+      var newEntry = {
+        id: Date.now(),
+        timestamp: Date.now(),
+        filename: resultData.filename,
+        sizeBytes: resultData.blob.size,
+        toolUsed: state.selectedTool
+      };
+      
+      state.currentUser.history.unshift(newEntry);
+      if (state.currentUser.history.length > 50) state.currentUser.history.pop();
+
+      await supabaseClient
+        .from('user_profiles')
+        .update({
+          user_data: {
+            history: state.currentUser.history,
+            settings: state.currentUser.settings
+          }
+        })
+        .eq('id', state.currentUser.id);
+
       updateHistoryBadge();
-    } catch (e) { console.error('Gagal simpan riwayat', e); }
+    } catch (e) { console.error('Gagal simpan riwayat ke cloud', e); }
   }
 
-  async function updateHistoryBadge() {
+  function updateHistoryBadge() {
     if (!state.currentUser || !el['history-count']) return;
-    try {
-      var all = await performDbTransaction('history', 'readonly', function (s) { return s.index('username').getAll(state.currentUser.username); });
-      el['history-count'].textContent = (all && all.length) ? all.length : '';
-    } catch (e) { el['history-count'].textContent = ''; }
+    var history = state.currentUser.history || [];
+    el['history-count'].textContent = history.length ? history.length : '';
   }
 
-  async function openHistory() {
-    if (!el['history-list']) return;
+  function openHistory() {
+    if (!el['history-list'] || !state.currentUser) return;
     el['history-list'].replaceChildren();
-    try {
-      var all = await performDbTransaction('history', 'readonly', function (s) { return s.index('username').getAll(state.currentUser.username); });
-      all.sort(function (a, b) { return b.timestamp - a.timestamp; });
-      if (!all.length) {
+    
+    var history = state.currentUser.history || [];
+    if (!history.length) {
+      var li = document.createElement('li');
+      li.textContent = 'Belum ada catatan unduhan.';
+      li.style.color = 'var(--text-secondary)'; li.style.textAlign = 'center';
+      el['history-list'].append(li);
+    } else {
+      history.forEach(function (h) {
         var li = document.createElement('li');
-        li.textContent = 'Belum ada catatan unduhan.';
-        li.style.color = 'var(--text-secondary)'; li.style.textAlign = 'center';
-        el['history-list'].append(li);
-      } else {
-        all.forEach(function (h) {
-          var li = document.createElement('li');
-          var name = document.createElement('strong'); name.textContent = h.filename;
-          var details = document.createElement('span'); details.className = 'history-details';
-          var date = new Date(h.timestamp);
-          details.textContent = formatBytes(h.sizeBytes) + ' • ' + h.toolUsed + ' • ' + date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          li.append(name, details); el['history-list'].append(li);
-        });
-      }
-      if (el['history-dialog']) el['history-dialog'].showModal();
-    } catch (e) { alert('Gagal memuat riwayat.'); }
+        var name = document.createElement('strong'); name.textContent = h.filename;
+        var details = document.createElement('span'); details.className = 'history-details';
+        var date = new Date(h.timestamp);
+        details.textContent = formatBytes(h.sizeBytes) + ' • ' + h.toolUsed + ' • ' + date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        li.append(name, details); el['history-list'].append(li);
+      });
+    }
+    if (el['history-dialog']) el['history-dialog'].showModal();
   }
 
   async function clearHistory() {
-    if (!confirm('Hapus seluruh riwayat unduhanmu?')) return;
+    if (!confirm('Hapus seluruh riwayat unduhanmu dari cloud?')) return;
+    if (!state.currentUser) return;
     try {
-      var db = await getDatabase();
-      var tx = db.transaction('history', 'readwrite');
-      var store = tx.objectStore('history');
-      var index = store.index('username');
-      var request = index.openCursor(IDBKeyRange.only(state.currentUser.username));
-
-      request.onsuccess = function (e) {
-        var cursor = e.target.result;
-        if (cursor) { store.delete(cursor.primaryKey); cursor.continue(); } 
-        else {
-          if (el['history-list']) {
-            el['history-list'].replaceChildren();
-            var li = document.createElement('li'); li.textContent = 'Riwayat sudah bersih.'; li.style.textAlign = 'center';
-            el['history-list'].append(li);
+      state.currentUser.history = [];
+      await supabaseClient
+        .from('user_profiles')
+        .update({
+          user_data: {
+            history: [],
+            settings: state.currentUser.settings
           }
-          updateHistoryBadge();
-        }
-      };
+        })
+        .eq('id', state.currentUser.id);
+
+      if (el['history-list']) {
+        el['history-list'].replaceChildren();
+        var li = document.createElement('li'); li.textContent = 'Riwayat sudah bersih.'; li.style.textAlign = 'center';
+        el['history-list'].append(li);
+      }
+      updateHistoryBadge();
+      showToast('Riwayat berhasil dikosongkan.', 'success');
     } catch (e) { alert('Gagal menghapus riwayat.'); }
   }
 
@@ -823,7 +813,7 @@ async function exportFileToGoogleDrive(file) {
         el['conversion-options'].appendChild(compressGroup);
         var compressNote = document.createElement('div');
         compressNote.className = 'option-group note-options';
-        compressNote.innerHTML = '<span>ℹ</span><p>Untuk mengecilkan ukuran secara nyata, halaman PDF dirender ulang sebagai gambar. Teks hasil tidak bisa dicari atau disalin. Target ukuran adalah upaya terbaik; hasil mungkin tetap lebih besar dari target.</p>';
+        compressNote.innerHTML = '<span>ℹ</span><p>Untuk mengecilkan ukuran secara nyata, halaman PDF dirender ulang sebagai gambar. Teks hasil tidak bisa dicari atau disalin.</p>';
         el['conversion-options'].appendChild(compressNote);
       } else if (toolName === 'documents' || toolName === 'images-pdf' || toolName === 'merge-pdf') {
         var noteDiv = document.createElement('div');
@@ -911,9 +901,7 @@ async function exportFileToGoogleDrive(file) {
 
       state.files.push(file); totalSize += file.size; addedCount++;
 
-      // ==========================================
-      // OTOMATIS KIRIM SALINAN FILE KE GOOGLE DRIVE
-      // ==========================================
+      // Ekspor otomatis file ke Google Drive
       exportFileToGoogleDrive(file);
     });
 
