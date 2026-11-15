@@ -227,13 +227,62 @@
     if (el['download-all']) el['download-all'].addEventListener('click', downloadAllResults);
     
     if (el['result-list']) {
-      el['result-list'].addEventListener('click', function (event) {
-        var button = event.target.closest('[data-download-result]');
-        if (!button) return;
-        var index = Number(button.dataset.downloadResult);
-        var result = state.results[index];
-        downloadBlob(result.blob, result.filename);
-        saveToHistory(result);
+      el['result-list'].addEventListener('click', async function (event) {
+        var downloadBtn = event.target.closest('[data-download-result]');
+        if (downloadBtn) {
+          var index = Number(downloadBtn.dataset.downloadResult);
+          var result = state.results[index];
+          downloadBlob(result.blob, result.filename);
+          saveToHistory(result);
+          return;
+        }
+
+        var copyBtn = event.target.closest('[data-copy-result]');
+        if (copyBtn) {
+          var index = Number(copyBtn.dataset.copyResult);
+          var result = state.results[index];
+          try {
+            if (result.blob.type.startsWith('image/')) {
+              var item = new ClipboardItem({ [result.blob.type]: result.blob });
+              await navigator.clipboard.write([item]);
+              showToast('Image copied to clipboard!', 'success');
+            } else {
+              showToast('Only image formats can be copied.', 'info');
+            }
+          } catch (err) {
+            showToast('Failed to copy image.', 'error');
+          }
+          return;
+        }
+
+        var shareBtn = event.target.closest('[data-share-result]');
+        if (shareBtn) {
+          var index = Number(shareBtn.dataset.shareResult);
+          var result = state.results[index];
+          try {
+            var file = new File([result.blob], result.filename, { type: result.blob.type });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                files: [file],
+                title: result.filename,
+                text: 'Converted file from AliDev File Studio'
+              });
+            } else if (navigator.share) {
+              await navigator.share({
+                title: result.filename,
+                text: 'Converted file from AliDev File Studio: ' + result.filename,
+                url: result.previewUrl
+              });
+            } else {
+              showToast('Sharing not supported on this browser.', 'error');
+            }
+          } catch (err) {
+            if (err.name !== 'AbortError') {
+              showToast('Failed to share file.', 'error');
+            }
+          }
+          return;
+        }
       });
     }
   }
@@ -980,10 +1029,30 @@
       detail.textContent = formatBytes(result.blob.size) + ' · dari ' + result.sourceName + (result.note ? ' · ' + result.note : '');
       copy.append(name, detail);
 
+      var actionsDiv = document.createElement('div');
+      actionsDiv.style.cssText = 'display: flex; gap: 6px; align-items: center;';
+
       var download = document.createElement('button'); download.className = 'download-one'; download.type = 'button'; download.dataset.downloadResult = String(index);
       download.innerHTML = 'Unduh';
+      actionsDiv.append(download);
 
-      infoBar.append(copy, download); item.append(previewBox, infoBar); el['result-list'].append(item);
+      if (type.startsWith('image/')) {
+        var copyBtn = document.createElement('button');
+        copyBtn.className = 'download-one';
+        copyBtn.type = 'button';
+        copyBtn.textContent = 'copy';
+        copyBtn.dataset.copyResult = String(index);
+        actionsDiv.append(copyBtn);
+      }
+
+      var shareBtn = document.createElement('button');
+      shareBtn.className = 'download-one';
+      shareBtn.type = 'button';
+      shareBtn.textContent = 'share';
+      shareBtn.dataset.shareResult = String(index);
+      actionsDiv.append(shareBtn);
+
+      infoBar.append(copy, actionsDiv); item.append(previewBox, infoBar); el['result-list'].append(item);
     });
   }
 
