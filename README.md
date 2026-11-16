@@ -25,6 +25,7 @@ AliDev File Studio menyediakan berbagai alat praktis dalam satu tempat:
 *   📚 **Gabungkan PDF:** Gabungkan dan susun ulang beberapa file PDF menjadi satu file utuh.
 *   🎵 **Video ke MP3:** Ekstrak audio dari file video dengan cepat.
 *   ✂️ **Pangkas Area Video:** Potong bagian area atau sesuaikan resolusi video sesuai kebutuhan.
+*   ✏️🔖 **Tambahkan Tanda Air Ke Pdf:** tambahkan tanda air ke pdf anda sebagai tanda kepemilikan pdf anda. anda bisa menambahkan teks atau gambar sesuai kemauan anda.
 
 ---
 
