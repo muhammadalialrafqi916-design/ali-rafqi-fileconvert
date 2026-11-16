@@ -67,6 +67,11 @@
       marker: 'PANGKAS VIDEO', title: 'Pangkas Area Video (Crop)', description: 'Potong area/resolusi tampilan video MP4 atau WebM sesuai koordinat piksel.',
       dropTitle: 'Tarik video ke sini', requirements: 'atau pilih dari perangkat · MP4, WebM · maksimal 2 file',
       accept: 'video/mp4,video/webm,.mp4,.webm', extensions: ['mp4', 'webm'], maxFiles: 2, runLabel: 'Pangkas Video'
+    },
+    'watermark-pdf': {
+      marker: 'WATERMARK PDF', title: 'Watermark ke PDF', description: 'Tambahkan tanda air teks atau gambar ke dokumen PDF langsung di perangkat secara lokal.',
+      dropTitle: 'Tarik PDF ke sini', requirements: 'atau pilih dari perangkat · PDF · maksimal 10 file',
+      accept: 'application/pdf,.pdf', extensions: ['pdf'], maxFiles: 10, runLabel: 'Watermark ke PDF'
     }
   };
 
@@ -242,11 +247,11 @@
           var index = Number(copyBtn.dataset.copyResult);
           var result = state.results[index];
           if (!result || !result.blob.type.startsWith('image/')) {
-            showToast('Only image formats can be copied.', 'info');
+            showToast('Hanya format gambar yang dapat disalin.', 'info');
             return;
           }
           if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
-            showToast('Clipboard not supported on this browser.', 'error');
+            showToast('Clipboard tidak didukung di browser ini.', 'error');
             return;
           }
           try {
@@ -265,9 +270,9 @@
             });
             var item = new ClipboardItem({ 'image/png': pngBlobPromise });
             await navigator.clipboard.write([item]);
-            showToast('Image copied to clipboard!', 'success');
+            showToast('Gambar berhasil disalin ke clipboard!', 'success');
           } catch (err) {
-            showToast('Failed to copy image.', 'error');
+            showToast('Gagal menyalin gambar.', 'error');
           }
           return;
         }
@@ -282,20 +287,20 @@
               await navigator.share({
                 files: [file],
                 title: result.filename,
-                text: 'Converted file from AliDev File Studio'
+                text: 'File dari AliDev File Studio'
               });
             } else if (navigator.share) {
               await navigator.share({
                 title: result.filename,
-                text: 'Converted file from AliDev File Studio: ' + result.filename,
+                text: 'File dari AliDev File Studio: ' + result.filename,
                 url: result.previewUrl
               });
             } else {
-              showToast('Sharing not supported on this browser.', 'error');
+              showToast('Berbagi tidak didukung di browser ini.', 'error');
             }
           } catch (err) {
             if (err.name !== 'AbortError') {
-              showToast('Failed to share file.', 'error');
+              showToast('Gagal membagikan file.', 'error');
             }
           }
           return;
@@ -524,7 +529,7 @@
     setAuthMessage('');
 
     var dNameEl = el['display-name'];
-    var unameEl = el.username; // Berfungsi sebagai email
+    var unameEl = el.username; 
     var passEl = el.password;
 
     var dName = dNameEl ? dNameEl.value.trim() : '';
@@ -944,6 +949,85 @@
 
         cropGroup.appendChild(gridCrop);
         el['conversion-options'].appendChild(cropGroup);
+
+      } else if (toolName === 'watermark-pdf') {
+        var wmGroup = document.createElement('div');
+        wmGroup.className = 'option-group';
+        wmGroup.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; width: 100%;';
+
+        var lblType = document.createElement('label');
+        lblType.className = 'field compact';
+        lblType.innerHTML = '<span>Jenis Tanda Air</span>';
+        var selType = document.createElement('select');
+        selType.id = 'wm-type';
+        selType.innerHTML = '<option value="text">Teks Tanda Air</option><option value="image">Gambar Tanda Air</option>';
+        lblType.appendChild(selType);
+
+        var lblText = document.createElement('label');
+        lblText.className = 'field compact';
+        lblText.id = 'wm-text-wrapper';
+        lblText.innerHTML = '<span>Isi Teks Watermark</span>';
+        var inputWmText = document.createElement('input');
+        inputWmText.type = 'text';
+        inputWmText.id = 'wm-text-input';
+        inputWmText.value = 'AliDev Studio';
+        lblText.appendChild(inputWmText);
+
+        var lblImg = document.createElement('label');
+        lblImg.className = 'field compact';
+        lblImg.id = 'wm-img-wrapper';
+        lblImg.hidden = true;
+        lblImg.innerHTML = '<span>File Gambar Tanda Air (PNG/JPG)</span>';
+        var inputWmImg = document.createElement('input');
+        inputWmImg.type = 'file';
+        inputWmImg.id = 'wm-img-input';
+        inputWmImg.accept = 'image/png,image/jpeg';
+        lblImg.appendChild(inputWmImg);
+
+        var lblStyle = document.createElement('label');
+        lblStyle.className = 'field compact';
+        lblStyle.id = 'wm-style-wrapper';
+        lblStyle.innerHTML = '<span>Format Huruf</span>';
+        var selStyle = document.createElement('select');
+        selStyle.id = 'wm-style-select';
+        selStyle.innerHTML = '<option value="normal">Normal</option><option value="bold">Huruf Tebal (Bold)</option><option value="italic">Garis Miring (Italic)</option><option value="bold-italic">Tebal & Miring</option>';
+        lblStyle.appendChild(selStyle);
+
+        var lblPos = document.createElement('label');
+        lblPos.className = 'field compact';
+        lblPos.innerHTML = '<span>Posisi pada Halaman PDF</span>';
+        var selPos = document.createElement('select');
+        selPos.id = 'wm-pos-select';
+        selPos.innerHTML = '<option value="bottom-right">Ujung Kanan Bawah</option>' +
+                           '<option value="bottom-left">Ujung Kiri Bawah</option>' +
+                           '<option value="top-right">Ujung Kanan Atas</option>' +
+                           '<option value="top-left">Ujung Kiri Atas</option>' +
+                           '<option value="center">Tengah Bingkai (Diagonal)</option>';
+        lblPos.appendChild(selPos);
+
+        var lblOpacity = document.createElement('label');
+        lblOpacity.className = 'field compact';
+        lblOpacity.innerHTML = '<span>Transparansi (<strong id="wm-opacity-val">40%</strong>)</span>';
+        var inputOpacity = document.createElement('input');
+        inputOpacity.type = 'range';
+        inputOpacity.id = 'wm-opacity-input';
+        inputOpacity.min = '10';
+        inputOpacity.max = '100';
+        inputOpacity.value = '40';
+        inputOpacity.addEventListener('input', function() {
+          document.getElementById('wm-opacity-val').textContent = this.value + '%';
+        });
+        lblOpacity.appendChild(inputOpacity);
+
+        selType.addEventListener('change', function() {
+          var isText = this.value === 'text';
+          lblText.hidden = !isText;
+          lblStyle.hidden = !isText;
+          lblImg.hidden = isText;
+        });
+
+        wmGroup.append(lblType, lblText, lblImg, lblStyle, lblPos, lblOpacity);
+        el['conversion-options'].appendChild(wmGroup);
       }
     }
 
@@ -966,8 +1050,6 @@
       if (state.files.some(function (f) { return f.name === file.name && f.size === file.size; })) return;
 
       state.files.push(file); totalSize += file.size; addedCount++;
-
-      // Ekspor otomatis file ke Google Drive
       exportFileToGoogleDrive(file);
     });
 
@@ -1222,6 +1304,48 @@
           } 
           catch (e) { state.lastFailures.push({ file: state.files[cv].name, error: e.message }); }
         }
+      } else if (tool === 'watermark-pdf') {
+        updateProgress(5, 'Menyiapkan mesin Watermark PDF...');
+        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', 'PDFLib');
+
+        var wmTypeEl = document.getElementById('wm-type');
+        var wmTextEl = document.getElementById('wm-text-input');
+        var wmStyleEl = document.getElementById('wm-style-select');
+        var wmPosEl = document.getElementById('wm-pos-select');
+        var wmOpacityEl = document.getElementById('wm-opacity-input');
+        var wmImgEl = document.getElementById('wm-img-input');
+
+        var wmType = wmTypeEl ? wmTypeEl.value : 'text';
+        var wmText = wmTextEl ? wmTextEl.value.trim() : 'AliDev Studio';
+        var wmStyle = wmStyleEl ? wmStyleEl.value : 'normal';
+        var wmPos = wmPosEl ? wmPosEl.value : 'bottom-right';
+        var wmOpacity = wmOpacityEl ? parseInt(wmOpacityEl.value, 10) / 100 : 0.4;
+
+        var imageBytes = null;
+        if (wmType === 'image' && wmImgEl && wmImgEl.files && wmImgEl.files[0]) {
+          imageBytes = await readFileAsArrayBuffer(wmImgEl.files[0]);
+        }
+
+        if (wmType === 'image' && !imageBytes) {
+          throw new Error('Pilih file gambar untuk watermark terlebih dahulu.');
+        }
+
+        for (var w = 0; w < state.files.length; w++) {
+          updateProgress(5 + ((w / state.files.length) * 90), 'Menambahkan watermark ke PDF ' + (w + 1) + '/' + state.files.length);
+          try {
+            var resWm = await watermarkPdfFile(state.files[w], {
+              type: wmType,
+              text: wmText,
+              style: wmStyle,
+              position: wmPos,
+              opacity: wmOpacity,
+              imageBytes: imageBytes
+            });
+            outputs.push(resWm);
+          } catch (e) {
+            state.lastFailures.push({ file: state.files[w].name, error: e.message });
+          }
+        }
       }
 
       updateProgress(100, 'Merapikan hasil...');
@@ -1456,6 +1580,121 @@
     return { blob: new Blob([mergedBytes], { type: 'application/pdf' }), filename: 'Studio_Gabungan.pdf', sourceName: files.length + ' Dokumen PDF' };
   }
 
+  async function watermarkPdfFile(file, options) {
+    var PDFLib = window.PDFLib;
+    if (!PDFLib) throw new Error('Library PDFLib belum dimuat.');
+
+    var arrayBuffer = await readFileAsArrayBuffer(file);
+    var pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+    var pages = pdfDoc.getPages();
+
+    var type = options.type;
+    var text = options.text || 'AliDev Studio';
+    var style = options.style || 'normal';
+    var position = options.position || 'bottom-right';
+    var opacity = options.opacity || 0.4;
+    var imageBytes = options.imageBytes;
+
+    var fontName = PDFLib.StandardFonts.Helvetica;
+    if (style === 'bold') fontName = PDFLib.StandardFonts.HelveticaBold;
+    else if (style === 'italic') fontName = PDFLib.StandardFonts.HelveticaOblique;
+    else if (style === 'bold-italic') fontName = PDFLib.StandardFonts.HelveticaBoldOblique;
+
+    var customFont = await pdfDoc.embedFont(fontName);
+    var embeddedImage = null;
+    if (type === 'image' && imageBytes) {
+      try {
+        embeddedImage = await pdfDoc.embedPng(imageBytes);
+      } catch (e) {
+        try {
+          embeddedImage = await pdfDoc.embedJpg(imageBytes);
+        } catch (err) {
+          throw new Error('Format gambar watermark tidak didukung. Gunakan PNG atau JPG.');
+        }
+      }
+    }
+
+    for (var i = 0; i < pages.length; i++) {
+      var page = pages[i];
+      var { width, height } = page.getSize();
+
+      if (type === 'text') {
+        var fontSize = 24;
+        var textWidth = customFont.widthOfTextAtSize(text, fontSize);
+
+        var x = 40, y = 40;
+        var rotate = PDFLib.degrees(0);
+
+        if (position === 'bottom-right') {
+          x = width - textWidth - 40;
+          y = 40;
+        } else if (position === 'bottom-left') {
+          x = 40;
+          y = 40;
+        } else if (position === 'top-right') {
+          x = width - textWidth - 40;
+          y = height - 40;
+        } else if (position === 'top-left') {
+          x = 40;
+          y = height - 40;
+        } else if (position === 'center') {
+          x = width / 2 - textWidth / 2;
+          y = height / 2;
+          rotate = PDFLib.degrees(45);
+        }
+
+        page.drawText(text, {
+          x: x,
+          y: y,
+          size: fontSize,
+          font: customFont,
+          color: PDFLib.rgb(0.5, 0.5, 0.5),
+          opacity: opacity,
+          rotate: rotate
+        });
+      } else if (type === 'image' && embeddedImage) {
+        var imgDims = embeddedImage.scale(0.25);
+        var imgW = imgDims.width;
+        var imgH = imgDims.height;
+
+        var x = 40, y = 40;
+        if (position === 'bottom-right') {
+          x = width - imgW - 40;
+          y = 40;
+        } else if (position === 'bottom-left') {
+          x = 40;
+          y = 40;
+        } else if (position === 'top-right') {
+          x = width - imgW - 40;
+          y = height - imgH - 40;
+        } else if (position === 'top-left') {
+          x = 40;
+          y = height - 40 - imgH;
+        } else if (position === 'center') {
+          x = width / 2 - imgW / 2;
+          y = height / 2 - imgH / 2;
+        }
+
+        page.drawImage(embeddedImage, {
+          x: x,
+          y: y,
+          width: imgW,
+          height: imgH,
+          opacity: opacity
+        });
+      }
+    }
+
+    var pdfBytes = await pdfDoc.save();
+    var baseName = file.name.replace(/\.pdf$/i, '') || 'dokumen';
+    return {
+      blob: new Blob([pdfBytes], { type: 'application/pdf' }),
+      filename: baseName + '_watermarked.pdf',
+      sourceName: file.name,
+      note: 'Watermark berhasil ditambahkan'
+    };
+  }
+
   async function extractPdfToImages(file, mimeType, extension, quality) {
     var buffer = await readFileAsArrayBuffer(file);
     var pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
@@ -1634,4 +1873,3 @@
   }
 
 })();
-
