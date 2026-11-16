@@ -241,14 +241,31 @@
         if (copyBtn) {
           var index = Number(copyBtn.dataset.copyResult);
           var result = state.results[index];
+          if (!result || !result.blob.type.startsWith('image/')) {
+            showToast('Only image formats can be copied.', 'info');
+            return;
+          }
+          if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+            showToast('Clipboard not supported on this browser.', 'error');
+            return;
+          }
           try {
-            if (result.blob.type.startsWith('image/')) {
-              var item = new ClipboardItem({ [result.blob.type]: result.blob });
-              await navigator.clipboard.write([item]);
-              showToast('Image copied to clipboard!', 'success');
-            } else {
-              showToast('Only image formats can be copied.', 'info');
-            }
+            var pngBlobPromise = loadImageFromUrl(result.previewUrl).then(function (img) {
+              var canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth || img.width;
+              canvas.height = img.naturalHeight || img.height;
+              var ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+              return new Promise(function (resolve, reject) {
+                canvas.toBlob(function (b) {
+                  if (b) resolve(b);
+                  else reject(new Error('Canvas conversion failed'));
+                }, 'image/png');
+              });
+            });
+            var item = new ClipboardItem({ 'image/png': pngBlobPromise });
+            await navigator.clipboard.write([item]);
+            showToast('Image copied to clipboard!', 'success');
           } catch (err) {
             showToast('Failed to copy image.', 'error');
           }
@@ -1043,14 +1060,14 @@
         copyBtn.textContent = 'copy';
         copyBtn.dataset.copyResult = String(index);
         actionsDiv.append(copyBtn);
-      }
 
-      var shareBtn = document.createElement('button');
-      shareBtn.className = 'download-one';
-      shareBtn.type = 'button';
-      shareBtn.textContent = 'share';
-      shareBtn.dataset.shareResult = String(index);
-      actionsDiv.append(shareBtn);
+        var shareBtn = document.createElement('button');
+        shareBtn.className = 'download-one';
+        shareBtn.type = 'button';
+        shareBtn.textContent = 'share';
+        shareBtn.dataset.shareResult = String(index);
+        actionsDiv.append(shareBtn);
+      }
 
       infoBar.append(copy, actionsDiv); item.append(previewBox, infoBar); el['result-list'].append(item);
     });
@@ -1617,3 +1634,4 @@
   }
 
 })();
+
