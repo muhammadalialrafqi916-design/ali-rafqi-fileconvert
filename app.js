@@ -72,6 +72,11 @@
       marker: 'WATERMARK PDF', title: 'Watermark ke PDF', description: 'Tambahkan tanda air teks atau gambar ke dokumen PDF langsung di perangkat secara lokal.',
       dropTitle: 'Tarik PDF ke sini', requirements: 'atau pilih dari perangkat · PDF · maksimal 10 file',
       accept: 'application/pdf,.pdf', extensions: ['pdf'], maxFiles: 10, runLabel: 'Watermark ke PDF'
+    },
+    'protect-pdf': {
+      marker: 'LINDUNGI PDF', title: 'Lindungi PDF dengan Sandi', description: 'Enkripsi dan kunci dokumen PDF dengan kata sandi aman secara lokal di browser.',
+      dropTitle: 'Tarik PDF ke sini', requirements: 'atau pilih dari perangkat · PDF · maksimal 5 file',
+      accept: 'application/pdf,.pdf', extensions: ['pdf'], maxFiles: 5, runLabel: 'Kunci & Enkripsi PDF'
     }
   };
 
@@ -1028,6 +1033,28 @@
 
         wmGroup.append(lblType, lblText, lblImg, lblStyle, lblPos, lblOpacity);
         el['conversion-options'].appendChild(wmGroup);
+
+      } else if (toolName === 'protect-pdf') {
+        var protectGroup = document.createElement('div');
+        protectGroup.className = 'option-group';
+        protectGroup.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; width: 100%;';
+
+        var lblPass = document.createElement('label');
+        lblPass.className = 'field compact';
+        lblPass.innerHTML = '<span>Kata Sandi PDF</span>';
+        var inputPass = document.createElement('input');
+        inputPass.type = 'password';
+        inputPass.id = 'protect-password-input';
+        inputPass.placeholder = 'Masukkan kata sandi rahasia';
+        lblPass.appendChild(inputPass);
+
+        var lblNote = document.createElement('div');
+        lblNote.className = 'option-group note-options';
+        lblNote.style.gridColumn = '1 / -1';
+        lblNote.innerHTML = '<span>🔒</span><p>File PDF akan dienkripsi dengan kata sandi secara lokal di perangkat Anda. Siapa pun yang membuka file ini harus memasukkan kata sandi yang benar.</p>';
+
+        protectGroup.append(lblPass, lblNote);
+        el['conversion-options'].appendChild(protectGroup);
       }
     }
 
@@ -1344,6 +1371,24 @@
             outputs.push(resWm);
           } catch (e) {
             state.lastFailures.push({ file: state.files[w].name, error: e.message });
+          }
+        }
+      } else if (tool === 'protect-pdf') {
+        var passInput = document.getElementById('protect-password-input');
+        var password = passInput ? passInput.value.trim() : '';
+        if (!password) throw new Error('Masukkan kata sandi terlebih dahulu untuk melindungi PDF.');
+
+        updateProgress(5, 'Menyiapkan mesin enkripsi PDF...');
+        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'pdfjsLib');
+        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+        configurePdfWorker();
+
+        for (var p = 0; p < state.files.length; p++) {
+          updateProgress(10 + (p / state.files.length) * 80, 'Mengenkripsi PDF ' + (p + 1) + '/' + state.files.length);
+          try {
+            outputs.push(await protectPdfWithPassword(state.files[p], password));
+          } catch (e) {
+            state.lastFailures.push({ file: state.files[p].name, error: e.message });
           }
         }
       }
@@ -1692,6 +1737,66 @@
       filename: baseName + '_watermarked.pdf',
       sourceName: file.name,
       note: 'Watermark berhasil ditambahkan'
+    };
+  }
+
+  async function protectPdfWithPassword(file, password) {
+    var buffer = await readFileAsArrayBuffer(file);
+    var pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+    var jsPDF = window.jspdf && window.jspdf.jsPDF;
+    if (!jsPDF) throw new Error('Library jsPDF tidak tersedia.');
+
+    var encryptedDoc = null;
+    try {
+      for (var num = 1; num <= pdf.numPages; num++) {
+        updateProgress((num / pdf.numPages) * 90, 'Memproses halaman ' + num + '/' + pdf.numPages);
+        var page = await pdf.getPage(num);
+        var viewport = page.getViewport({ scale: 1.5 });
+        var canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+        var imgData = canvas.toDataURL('image/jpeg', 0.85);
+
+        var width = viewport.width * 0.75;
+        var height = viewport.height * 0.75;
+        var orientation = width > height ? 'landscape' : 'portrait';
+
+        if (!encryptedDoc) {
+          encryptedDoc = new jsPDF({
+            orientation: orientation,
+            unit: 'pt',
+            format: [width, height],
+            encryption: {
+              userPassword: password,
+              ownerPassword: password,
+              permissions: ['print']
+            }
+          });
+        } else {
+          encryptedDoc.addPage([width, height], orientation);
+        }
+        encryptedDoc.addImage(imgData, 'JPEG', 0, 0, width, height, undefined, 'FAST');
+        canvas.width = 0;
+        canvas.height = 0;
+        page.cleanup();
+      }
+    } finally {
+      await pdf.destroy();
+    }
+
+    if (!encryptedDoc) throw new Error('Gagal mengenkripsi dokumen PDF.');
+    var pdfBlob = encryptedDoc.output('blob');
+    var baseName = file.name.replace(/\.pdf$/i, '') || 'dokumen';
+    return {
+      blob: pdfBlob,
+      filename: baseName + '_protected.pdf',
+      sourceName: file.name,
+      note: 'Dilindungi sandi secara lokal'
     };
   }
 
