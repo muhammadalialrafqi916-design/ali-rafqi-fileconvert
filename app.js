@@ -77,6 +77,11 @@
       marker: 'LINDUNGI PDF', title: 'Lindungi PDF dengan Sandi', description: 'Enkripsi dan kunci dokumen PDF dengan kata sandi aman secara lokal di browser.',
       dropTitle: 'Tarik PDF ke sini', requirements: 'atau pilih dari perangkat · PDF · maksimal 5 file',
       accept: 'application/pdf,.pdf', extensions: ['pdf'], maxFiles: 5, runLabel: 'Kunci & Enkripsi PDF'
+    },
+    'image-to-text': {
+      marker: 'SCAN TEKS', title: 'Scan Teks dari Gambar (OCR)', description: 'Ambil dan ekstrak tulisan dari foto atau tangkapan layar secara lokal di perangkat.',
+      dropTitle: 'Tarik gambar teks ke sini', requirements: 'atau pilih dari perangkat · JPG, PNG, WebP · maksimal 5 file',
+      accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp', extensions: ['jpg', 'jpeg', 'png', 'webp'], maxFiles: 5, runLabel: 'Scan & Ambil Teks'
     }
   };
 
@@ -251,33 +256,41 @@
         if (copyBtn) {
           var index = Number(copyBtn.dataset.copyResult);
           var result = state.results[index];
-          if (!result || !result.blob.type.startsWith('image/')) {
-            showToast('Hanya format gambar yang dapat disalin.', 'info');
-            return;
-          }
-          if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
-            showToast('Clipboard tidak didukung di browser ini.', 'error');
-            return;
-          }
-          try {
-            var pngBlobPromise = loadImageFromUrl(result.previewUrl).then(function (img) {
-              var canvas = document.createElement('canvas');
-              canvas.width = img.naturalWidth || img.width;
-              canvas.height = img.naturalHeight || img.height;
-              var ctx = canvas.getContext('2d');
-              ctx.drawImage(img, 0, 0);
-              return new Promise(function (resolve, reject) {
-                canvas.toBlob(function (b) {
-                  if (b) resolve(b);
-                  else reject(new Error('Canvas conversion failed'));
-                }, 'image/png');
+          if (!result) return;
+
+          if (result.blob.type.startsWith('image/')) {
+            if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+              showToast('Clipboard tidak didukung di browser ini.', 'error');
+              return;
+            }
+            try {
+              var pngBlobPromise = loadImageFromUrl(result.previewUrl).then(function (img) {
+                var canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width;
+                canvas.height = img.naturalHeight || img.height;
+                var ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                return new Promise(function (resolve, reject) {
+                  canvas.toBlob(function (b) {
+                    if (b) resolve(b);
+                    else reject(new Error('Canvas conversion failed'));
+                  }, 'image/png');
+                });
               });
-            });
-            var item = new ClipboardItem({ 'image/png': pngBlobPromise });
-            await navigator.clipboard.write([item]);
-            showToast('Gambar berhasil disalin ke clipboard!', 'success');
-          } catch (err) {
-            showToast('Gagal menyalin gambar.', 'error');
+              var item = new ClipboardItem({ 'image/png': pngBlobPromise });
+              await navigator.clipboard.write([item]);
+              showToast('Gambar berhasil disalin ke clipboard!', 'success');
+            } catch (err) {
+              showToast('Gagal menyalin gambar.', 'error');
+            }
+          } else {
+            try {
+              var textContent = await result.blob.text();
+              await navigator.clipboard.writeText(textContent);
+              showToast('Teks hasil scan berhasil disalin!', 'success');
+            } catch (err) {
+              showToast('Gagal menyalin teks.', 'error');
+            }
           }
           return;
         }
@@ -1055,6 +1068,26 @@
 
         protectGroup.append(lblPass, lblNote);
         el['conversion-options'].appendChild(protectGroup);
+      } else if (toolName === 'image-to-text') {
+        var ocrGroup = document.createElement('div');
+        ocrGroup.className = 'option-group';
+        ocrGroup.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; width: 100%;';
+
+        var lblLang = document.createElement('label');
+        lblLang.className = 'field compact';
+        lblLang.innerHTML = '<span>Bahasa Dokumen Teks</span>';
+        var selLang = document.createElement('select');
+        selLang.id = 'ocr-lang-select';
+        selLang.innerHTML = '<option value="ind">Bahasa Indonesia (IND)</option><option value="eng">English (ENG)</option><option value="ind+eng">Indonesia & English</option>';
+        lblLang.appendChild(selLang);
+
+        var lblNoteOcr = document.createElement('div');
+        lblNoteOcr.className = 'option-group note-options';
+        lblNoteOcr.style.gridColumn = '1 / -1';
+        lblNoteOcr.innerHTML = '<span>👁</span><p>Proses pemindaian teks (OCR) dikerjakan sepenuhnya secara lokal di browser menggunakan engine Tesseract. Data gambar Anda tidak diunggah ke server manapun.</p>';
+
+        ocrGroup.append(lblLang, lblNoteOcr);
+        el['conversion-options'].appendChild(ocrGroup);
       }
     }
 
@@ -1143,6 +1176,16 @@
       } else if (type.startsWith('video/')) {
         var video = document.createElement('video'); video.controls = true; video.src = result.previewUrl; video.style.cssText = 'max-width: 100%; max-height: 300px; display: block;';
         previewBox.append(video);
+      } else if (type === 'text/plain') {
+        var pre = document.createElement('pre');
+        pre.style.cssText = 'width: 100%; max-height: 250px; overflow-y: auto; padding: 15px; font-family: inherit; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; color: var(--text-color); margin: 0; text-align: left;';
+        
+        fetch(result.previewUrl).then(function(res) { return res.text(); }).then(function(txt) {
+          pre.textContent = txt || '(Teks tidak terdeteksi pada gambar)';
+        }).catch(function() {
+          pre.textContent = 'Gagal memuat pratinjau teks.';
+        });
+        previewBox.append(pre);
       } else {
         var fallback = document.createElement('div'); fallback.style.padding = '20px'; fallback.style.color = 'var(--text-secondary)'; fallback.textContent = 'Pratinjau tidak tersedia';
         previewBox.append(fallback);
@@ -1162,14 +1205,14 @@
       download.innerHTML = 'Unduh';
       actionsDiv.append(download);
 
-      if (type.startsWith('image/')) {
-        var copyBtn = document.createElement('button');
-        copyBtn.className = 'download-one';
-        copyBtn.type = 'button';
-        copyBtn.textContent = 'copy';
-        copyBtn.dataset.copyResult = String(index);
-        actionsDiv.append(copyBtn);
+      var copyBtn = document.createElement('button');
+      copyBtn.className = 'download-one';
+      copyBtn.type = 'button';
+      copyBtn.textContent = type === 'text/plain' ? 'Salin Teks' : 'copy';
+      copyBtn.dataset.copyResult = String(index);
+      actionsDiv.append(copyBtn);
 
+      if (type.startsWith('image/')) {
         var shareBtn = document.createElement('button');
         shareBtn.className = 'download-one';
         shareBtn.type = 'button';
@@ -1389,6 +1432,21 @@
             outputs.push(await protectPdfWithPassword(state.files[p], password));
           } catch (e) {
             state.lastFailures.push({ file: state.files[p].name, error: e.message });
+          }
+        }
+      } else if (tool === 'image-to-text') {
+        var langEl = document.getElementById('ocr-lang-select');
+        var ocrLang = langEl ? langEl.value : 'ind';
+
+        updateProgress(5, 'Menyiapkan mesin Scan Teks lokal (Tesseract)...');
+        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js', 'Tesseract');
+
+        for (var o = 0; o < state.files.length; o++) {
+          updateProgress(10 + (o / state.files.length) * 80, 'Memindai teks gambar ' + (o + 1) + '/' + state.files.length);
+          try {
+            outputs.push(await scanImageToText(state.files[o], ocrLang));
+          } catch (e) {
+            state.lastFailures.push({ file: state.files[o].name, error: e.message });
           }
         }
       }
@@ -1798,6 +1856,35 @@
       sourceName: file.name,
       note: 'Dilindungi sandi secara lokal'
     };
+  }
+
+  async function scanImageToText(file, lang) {
+    var Tesseract = window.Tesseract;
+    if (!Tesseract) throw new Error('Library Tesseract belum dimuat.');
+
+    var worker = await Tesseract.createWorker(lang);
+    var imageUrl = URL.createObjectURL(file);
+
+    try {
+      var ret = await worker.recognize(imageUrl);
+      var recognizedText = ret.data.text || '';
+      await worker.terminate();
+      URL.revokeObjectURL(imageUrl);
+
+      var textBlob = new Blob([recognizedText], { type: 'text/plain;charset=utf-8' });
+      var baseName = file.name.substring(0, file.name.lastIndexOf('.')) || 'scan';
+
+      return {
+        blob: textBlob,
+        filename: baseName + '_scanned.txt',
+        sourceName: file.name,
+        note: 'Teks berhasil diekstrak secara lokal'
+      };
+    } catch (err) {
+      await worker.terminate();
+      URL.revokeObjectURL(imageUrl);
+      throw new Error('Gagal memindai teks dari gambar: ' + err.message);
+    }
   }
 
   async function extractPdfToImages(file, mimeType, extension, quality) {
