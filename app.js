@@ -1078,7 +1078,12 @@
         lblLang.innerHTML = '<span>Bahasa Dokumen Teks</span>';
         var selLang = document.createElement('select');
         selLang.id = 'ocr-lang-select';
-        selLang.innerHTML = '<option value="ind">Bahasa Indonesia (IND)</option><option value="eng">English (ENG)</option><option value="ind+eng">Indonesia & English</option>';
+        selLang.innerHTML = '<option value="ind">Bahasa Indonesia (IND)</option>' +
+                            '<option value="eng">English (ENG)</option>' +
+                            '<option value="ind+eng">Indonesia & English</option>' +
+                            '<option value="msa">Bahasa Malaysia (MS)</option>' +
+                            '<option value="chi_sim">Bahasa China / Mandarin (ZH)</option>' +
+                            '<option value="jpn">Bahasa Jepang (JP)</option>';
         lblLang.appendChild(selLang);
 
         var lblNoteOcr = document.createElement('div');
@@ -1862,7 +1867,11 @@
     var Tesseract = window.Tesseract;
     if (!Tesseract) throw new Error('Library Tesseract belum dimuat.');
 
-    var worker = await Tesseract.createWorker(lang);
+    // Perbaikan: Inisialisasi worker Tesseract.js v4 yang benar menggunakan loadLanguage dan initialize
+    var worker = await Tesseract.createWorker();
+    await worker.loadLanguage(lang);
+    await worker.initialize(lang);
+    
     var imageUrl = URL.createObjectURL(file);
 
     try {
@@ -2037,7 +2046,7 @@
     return new Blob([bufferArray], { type: 'audio/wav' });
   }
 
-    function downloadBlob(blob, filename) {
+  function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a'); a.href = url; a.download = filename;
     document.body.appendChild(a); a.click();
