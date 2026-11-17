@@ -79,7 +79,7 @@
       accept: 'application/pdf,.pdf', extensions: ['pdf'], maxFiles: 5, runLabel: 'Kunci & Enkripsi PDF'
     },
     'image-to-text': {
-      marker: 'SCAN TEKS', title: 'Scan Teks dari Gambar (OCR)', description: 'Ambil dan ekstrak tulisan dari foto atau tangkapan layar secara lokal di perangkat.',
+      marker: 'SCAN TEKS', title: 'Scan Teks dari Gambar', description: 'Ambil dan ekstrak tulisan dari foto atau tangkapan layar secara lokal di perangkat.',
       dropTitle: 'Tarik gambar teks ke sini', requirements: 'atau pilih dari perangkat · JPG, PNG, WebP · maksimal 5 file',
       accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp', extensions: ['jpg', 'jpeg', 'png', 'webp'], maxFiles: 5, runLabel: 'Scan & Ambil Teks'
     }
@@ -996,7 +996,7 @@
         lblImg.id = 'wm-img-wrapper';
         lblImg.hidden = true;
         lblImg.innerHTML = '<span>File Gambar Tanda Air (PNG/JPG)</span>';
-        var inputWmImg = document.createElement('input');
+        var inputWmImg = document.createElement('file');
         inputWmImg.type = 'file';
         inputWmImg.id = 'wm-img-input';
         inputWmImg.accept = 'image/png,image/jpeg';
@@ -1084,7 +1084,7 @@
         var lblNoteOcr = document.createElement('div');
         lblNoteOcr.className = 'option-group note-options';
         lblNoteOcr.style.gridColumn = '1 / -1';
-        lblNoteOcr.innerHTML = '<span>👁</span><p>Proses pemindaian teks (OCR) dikerjakan sepenuhnya secara lokal di browser menggunakan engine Tesseract. Data gambar Anda tidak diunggah ke server manapun.</p>';
+        lblNoteOcr.innerHTML = '<span>ℹ</span><p>Pemrosesan pemindaian teks dikerjakan sepenuhnya secara lokal di browser Anda tanpa menggunakan server tambahan.</p>';
 
         ocrGroup.append(lblLang, lblNoteOcr);
         el['conversion-options'].appendChild(ocrGroup);
@@ -2037,7 +2037,7 @@
     return new Blob([bufferArray], { type: 'audio/wav' });
   }
 
-  function downloadBlob(blob, filename) {
+    function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a'); a.href = url; a.download = filename;
     document.body.appendChild(a); a.click();
