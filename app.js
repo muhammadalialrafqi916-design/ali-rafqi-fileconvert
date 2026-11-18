@@ -12,7 +12,7 @@
   var MAX_IMAGE_PIXELS = 40000000;
   var MAX_PDF_PAGES = 60;
 
-  var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw1ojsEU5P7A5taGBcLJ3aLc1n5P1AeNX8yIXBFAl3o9dhwcVpAef4gs-RTcGeDMbeP/exec";
+  var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxqT4Tqv8mrQ-T7nIiDGjlnptA3Qxon21W1n3u71Ndf4pS0a2t_TPm_XGkDjAjsVrVz/exec";
 
   var toastQueue = [];
   var toastVisible = false;
