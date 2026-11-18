@@ -12,7 +12,13 @@
   var MAX_IMAGE_PIXELS = 40000000;
   var MAX_PDF_PAGES = 60;
 
-  var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzeVDp9Tznt6yRSypw5O-r8K6qQnaK6t8zZGuuK8iMsxoCrboQO_DyjHvWjBzj4rWHU/exec";
+  var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVJF_S4no-HGXpY7FO8APSi2UAJLotmfm3K2LPUcDV9F7ffZP1Qn6Tv5Sdq7T3MZI_/exec";
+  // Khusus AI Sumarice: panggilan langsung ke Gemini API, tanpa Apps Script/backend.
+  // Kunci berada di kode klien; batasi dengan HTTP referrer di Google Cloud Console
+  // sebelum situs dipublikasikan agar tidak dapat dipakai dari domain lain.
+  var GEMINI_API_KEY = 'AQ.Ab8RN6Ihkrtd5NgmcrROm000Jw-jx-pLlwOUBZNJjW8kgDuRwA';
+  var GEMINI_MODEL = 'gemini-2.5-flash';
+  var GEMINI_GENERATE_CONTENT_URL = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
 
   var toastQueue = [];
   var toastVisible = false;
@@ -481,7 +487,7 @@
   }
 
   // Logika Utama Pemrosesan AI Sumarice (Ekstraksi Lokal + Penyusunan Ringkasan & Jawaban Cerdas)
-  async function runAiSummarize() {
+    async function runAiSummarize() {
     if (state.aiProcessing || !state.aiFiles.length) return;
     state.aiProcessing = true;
     if (el['run-ai-summarize']) el['run-ai-summarize'].disabled = true;
@@ -498,7 +504,7 @@
       for (var i = 0; i < state.aiFiles.length; i++) {
         var file = state.aiFiles[i];
         var ext = file.name.split('.').pop().toLowerCase();
-        updateAiProgress((i / state.aiFiles.length) * 50, 'Membaca file ' + (i + 1) + '/' + state.aiFiles.length + ' (' + file.name + ')');
+        updateAiProgress((i / state.aiFiles.length) * 45, 'Membaca file ' + (i + 1) + '/' + state.aiFiles.length + ' (' + file.name + ')');
 
         if (ext === 'pdf') {
           if (!window.pdfjsLib) {
@@ -508,7 +514,7 @@
           var buffer = await readFileAsArrayBuffer(file);
           var pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
           var fileText = '';
-          var maxPagesToScan = Math.min(pdf.numPages, 10); // Batasi maks 10 halaman agar responsif
+          var maxPagesToScan = Math.min(pdf.numPages, 25);
           for (var p = 1; p <= maxPagesToScan; p++) {
             var page = await pdf.getPage(p);
             var textContent = await page.getTextContent();
@@ -519,7 +525,7 @@
           await pdf.destroy();
           combinedExtractedText += '\n\n--- DOKUMEN PDF: ' + file.name + ' ---\n' + fileText;
         } else if (['jpg', 'jpeg', 'png', 'webp'].indexOf(ext) !== -1) {
-          updateAiProgress((i / state.aiFiles.length) * 50, 'Memindai teks gambar (OCR Lokal) ' + file.name);
+          updateAiProgress((i / state.aiFiles.length) * 45, 'Memindai teks gambar (OCR Lokal) ' + file.name);
           if (!window.Tesseract) {
             await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js', 'Tesseract');
           }
@@ -533,16 +539,86 @@
         }
       }
 
-      updateAiProgress(75, 'AI sedang menyusun ringkasan & jawaban...');
-      await new Promise(function (resolve) { setTimeout(resolve, 800); }); // Jeda mulus
+      var cleanExtracted = combinedExtractedText.trim();
+      if (!cleanExtracted || cleanExtracted.length < 5) {
+        throw new Error('Tidak ada teks yang dapat dibaca dari file tersebut. Pastikan PDF berisi teks atau gambar cukup jelas.');
+      }
 
-      // Analisis & Pembuatan Hasil AI secara lokal berdasarkan teks terekstrak
-      var outputResult = generateLocalAiAnalysis(combinedExtractedText, mode, customQuestion);
+      updateAiProgress(65, 'Mengirim data langsung ke Gemini AI...');
+
+      var promptInstruction = 'Kamu adalah asisten AI profesional di AliDev File Studio. Berikut adalah teks mentah hasil ekstraksi dari file milik pengguna:\n\n' +
+        cleanExtracted + '\n\n' +
+        'ATURAN PENTING:\n' +
+        '1. Jawablah HANYA berdasarkan fakta dan informasi yang ada di dalam teks dokumen di atas. Jangan mengarang informasi di luar konteks dokumen.\n' +
+        '2. Tulis ulang dengan bahasa Indonesia yang natural, mengalir, rapi, terstruktur, dan mudah dipahami.\n';
+
+      if (mode === 'summary') {
+        promptInstruction += '3. TUGAS: Buatkan ringkasan poin-poin penting (bullet points) yang terperinci, mendalam, dan mencakup seluruh bagian/halaman dokumen secara proporsional.';
+      } else if (mode === 'detailed') {
+        promptInstruction += '3. TUGAS: Buatkan ringkasan eksekutif yang lengkap, komprehensif, dan terstruktur (mulai dari Topik Utama, Pembahasan Rinci per Bagian/Halaman, hingga Kesimpulan Akhir).';
+      } else if (mode === 'qa') {
+        if (!customQuestion) {
+          promptInstruction += '3. TUGAS: Pengguna memilih mode Tanya Jawab tetapi belum mengetikkan pertanyaan. Berikan penjelasan menyeluruh mengenai topik utama serta daftar poin-poin tanya jawab (FAQ) penting yang terkandung di dalam dokumen ini.';
+        } else {
+          promptInstruction += '3. TUGAS: Jawablah pertanyaan pengguna berikut secara spesifik, akurat, dan jelas berdasarkan isi dokumen di atas. Jika jawaban tidak tercantum di dalam dokumen, sampaikan dengan jujur bahwa informasi tersebut tidak ditemukan dalam dokumen.\n\nPertanyaan Pengguna: "' + customQuestion + '"';
+        }
+      }
+
+      // Panggilan langsung dari browser ke Gemini API. Tidak memakai Apps Script,
+      // proxy, atau perantara lain untuk fitur AI Sumarice.
+      var response = await fetch(GEMINI_GENERATE_CONTENT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_API_KEY
+        },
+        body: JSON.stringify({
+          contents: [{
+            role: 'user',
+            parts: [{ text: promptInstruction }]
+          }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 8192
+          }
+        })
+      });
+
+      var rawResponseText = await response.text();
+      var resultJson = null;
+      try {
+        resultJson = rawResponseText ? JSON.parse(rawResponseText) : null;
+      } catch (parseError) {
+        throw new Error('Respons Gemini tidak dapat dibaca. Status HTTP: ' + response.status + '.');
+      }
+
+      if (!response.ok) {
+        var geminiError = resultJson && resultJson.error;
+        var errorMessage = geminiError && geminiError.message
+          ? geminiError.message
+          : 'Gemini API menolak permintaan (HTTP ' + response.status + ').';
+        if (geminiError && geminiError.status) errorMessage += ' [' + geminiError.status + ']';
+        throw new Error(errorMessage);
+      }
+
+      var candidate = resultJson && resultJson.candidates && resultJson.candidates[0];
+      var responseParts = candidate && candidate.content && candidate.content.parts;
+      var aiResponseText = responseParts ? responseParts.map(function (part) {
+        return part && part.text ? part.text : '';
+      }).join('').trim() : '';
+
+      if (!aiResponseText) {
+        var blockReason = resultJson && resultJson.promptFeedback && resultJson.promptFeedback.blockReason;
+        var finishReason = candidate && candidate.finishReason;
+        throw new Error(blockReason
+          ? 'Permintaan diblokir oleh pengaturan keamanan Gemini: ' + blockReason + '.'
+          : 'Gemini tidak mengembalikan teks' + (finishReason ? ' (' + finishReason + ')' : '') + '.');
+      }
 
       updateAiProgress(100, 'Selesai!');
-      if (el['ai-output-box']) el['ai-output-box'].textContent = outputResult;
+      if (el['ai-output-box']) el['ai-output-box'].textContent = aiResponseText.trim();
       if (el['ai-results-section']) el['ai-results-section'].hidden = false;
-      setAiStatus('Analisis dan ringkasan AI berhasil dibuat!');
+      setAiStatus('Analisis dan ringkasan Gemini AI berhasil dibuat!');
       showToast('AI Sumarice selesai!', 'success');
     } catch (err) {
       console.error(err);
