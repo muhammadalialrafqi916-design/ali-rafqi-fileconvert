@@ -12,7 +12,7 @@
   var MAX_IMAGE_PIXELS = 40000000;
   var MAX_PDF_PAGES = 60;
 
-  var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzeVDp9Tznt6yRSypw5O-r8K6qQnaK6t8zZGuuK8iMsxoCrboQO_DyjHvWjBzj4rWHU/exec";
+  var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxYyDsfw0gaDbyfv51vsP7r3LvS8asFqpr0Yi1VrCJndJAdrhCMfbmfkHMefMt0E6uc/exec";
 
   var toastQueue = [];
   var toastVisible = false;
@@ -481,7 +481,7 @@
   }
 
   // Logika Utama Pemrosesan AI Sumarice (Ekstraksi Lokal + Penyusunan Ringkasan & Jawaban Cerdas)
-  async function runAiSummarize() {
+    async function runAiSummarize() {
     if (state.aiProcessing || !state.aiFiles.length) return;
     state.aiProcessing = true;
     if (el['run-ai-summarize']) el['run-ai-summarize'].disabled = true;
@@ -498,7 +498,7 @@
       for (var i = 0; i < state.aiFiles.length; i++) {
         var file = state.aiFiles[i];
         var ext = file.name.split('.').pop().toLowerCase();
-        updateAiProgress((i / state.aiFiles.length) * 50, 'Membaca file ' + (i + 1) + '/' + state.aiFiles.length + ' (' + file.name + ')');
+        updateAiProgress((i / state.aiFiles.length) * 45, 'Membaca file ' + (i + 1) + '/' + state.aiFiles.length + ' (' + file.name + ')');
 
         if (ext === 'pdf') {
           if (!window.pdfjsLib) {
@@ -508,7 +508,7 @@
           var buffer = await readFileAsArrayBuffer(file);
           var pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
           var fileText = '';
-          var maxPagesToScan = Math.min(pdf.numPages, 10); // Batasi maks 10 halaman agar responsif
+          var maxPagesToScan = Math.min(pdf.numPages, 25);
           for (var p = 1; p <= maxPagesToScan; p++) {
             var page = await pdf.getPage(p);
             var textContent = await page.getTextContent();
@@ -519,7 +519,7 @@
           await pdf.destroy();
           combinedExtractedText += '\n\n--- DOKUMEN PDF: ' + file.name + ' ---\n' + fileText;
         } else if (['jpg', 'jpeg', 'png', 'webp'].indexOf(ext) !== -1) {
-          updateAiProgress((i / state.aiFiles.length) * 50, 'Memindai teks gambar (OCR Lokal) ' + file.name);
+          updateAiProgress((i / state.aiFiles.length) * 45, 'Memindai teks gambar (OCR Lokal) ' + file.name);
           if (!window.Tesseract) {
             await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js', 'Tesseract');
           }
@@ -533,16 +533,55 @@
         }
       }
 
-      updateAiProgress(75, 'AI sedang menyusun ringkasan & jawaban...');
-      await new Promise(function (resolve) { setTimeout(resolve, 800); }); // Jeda mulus
+      var cleanExtracted = combinedExtractedText.trim();
+      if (!cleanExtracted || cleanExtracted.length < 5) {
+        throw new Error('Tidak ada teks yang dapat dibaca dari file tersebut. Pastikan PDF berisi teks atau gambar cukup jelas.');
+      }
 
-      // Analisis & Pembuatan Hasil AI secara lokal berdasarkan teks terekstrak
-      var outputResult = generateLocalAiAnalysis(combinedExtractedText, mode, customQuestion);
+      updateAiProgress(65, 'Mengirim data ke server aman & meminta analisis Gemini AI...');
+
+      var promptInstruction = 'Kamu adalah asisten AI profesional di AliDev File Studio. Berikut adalah teks mentah hasil ekstraksi dari file milik pengguna:\n\n' +
+        cleanExtracted + '\n\n' +
+        'ATURAN PENTING:\n' +
+        '1. Jawablah HANYA berdasarkan fakta dan informasi yang ada di dalam teks dokumen di atas. Jangan mengarang informasi di luar konteks dokumen.\n' +
+        '2. Tulis ulang dengan bahasa Indonesia yang natural, mengalir, rapi, terstruktur, dan mudah dipahami.\n';
+
+      if (mode === 'summary') {
+        promptInstruction += '3. TUGAS: Buatkan ringkasan poin-poin penting (bullet points) yang terperinci, mendalam, dan mencakup seluruh bagian/halaman dokumen secara proporsional.';
+      } else if (mode === 'detailed') {
+        promptInstruction += '3. TUGAS: Buatkan ringkasan eksekutif yang lengkap, komprehensif, dan terstruktur (mulai dari Topik Utama, Pembahasan Rinci per Bagian/Halaman, hingga Kesimpulan Akhir).';
+      } else if (mode === 'qa') {
+        if (!customQuestion) {
+          promptInstruction += '3. TUGAS: Pengguna memilih mode Tanya Jawab tetapi belum mengetikkan pertanyaan. Berikan penjelasan menyeluruh mengenai topik utama serta daftar poin-poin tanya jawab (FAQ) penting yang terkandung di dalam dokumen ini.';
+        } else {
+          promptInstruction += '3. TUGAS: Jawablah pertanyaan pengguna berikut secara spesifik, akurat, dan jelas berdasarkan isi dokumen di atas. Jika jawaban tidak tercantum di dalam dokumen, sampaikan dengan jujur bahwa informasi tersebut tidak ditemukan dalam dokumen.\n\nPertanyaan Pengguna: "' + customQuestion + '"';
+        }
+      }
+
+      // Payload yang dikirim ke Google Apps Script (Backend)
+      var payload = {
+        action: "geminiAi",
+        prompt: promptInstruction,
+        model: "gemini-2.5-flash"
+      };
+
+      var response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+
+      var resultJson = await response.json();
+      if (resultJson.status !== 'success' || !resultJson.text) {
+        throw new Error(resultJson.message || 'Gagal mendapatkan respons dari server Google Apps Script.');
+      }
+
+      var aiResponseText = resultJson.text;
 
       updateAiProgress(100, 'Selesai!');
-      if (el['ai-output-box']) el['ai-output-box'].textContent = outputResult;
+      if (el['ai-output-box']) el['ai-output-box'].textContent = aiResponseText.trim();
       if (el['ai-results-section']) el['ai-results-section'].hidden = false;
-      setAiStatus('Analisis dan ringkasan AI berhasil dibuat!');
+      setAiStatus('Analisis dan ringkasan Gemini AI berhasil dibuat!');
       showToast('AI Sumarice selesai!', 'success');
     } catch (err) {
       console.error(err);
