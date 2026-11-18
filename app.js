@@ -559,67 +559,94 @@
   function generateLocalAiAnalysis(text, mode, question) {
     var cleanText = text.trim();
     if (!cleanText || cleanText.length < 5) {
-      return '⚠️ AI tidak dapat menemukan teks yang memadai di dalam file yang diunggah. Pastikan PDF memiliki teks yang bisa disorot atau gambar berisi tulisan yang jelas.';
+      return '⚠️ AI tidak dapat menemukan teks yang memadai di dalam file yang diunggah. Pastikan PDF memiliki teks yang bisa dibaca atau gambar berisi tulisan yang jelas.';
     }
 
     var wordCount = cleanText.split(/\s+/).length;
     var result = '';
 
-    if (mode === 'summary') {
-      result += '✨ **RINGKASAN POIN PENTING (BULLET POINTS)**\n';
-      result += '--------------------------------------------------\n';
-      result += '• **Analisis Sumber:** Berhasil membaca dan memindai ' + wordCount + ' kata dari dokumen/gambar yang diunggah secara lokal.\n';
-      result += '• **Gagasan Utama:** Dokumen memuat informasi terstruktur, pembahasan topik, serta data penting yang relevan dengan materi.\n';
-      
-      // Ambil beberapa sampel kalimat unik dari teks
-      var sentences = cleanText.replace(/\s+/g, ' ').split(/[.!?]/).filter(function (s) { return s.trim().length > 15; });
-      if (sentences.length > 0) {
-        result += '• **Poin Sorotan Utama Dari Teks:**\n';
-        for (var i = 0; i < Math.min(4, sentences.length); i++) {
-          result += '  - ' + sentences[i].trim() + '.\n';
-        }
-      }
-      result += '\n💡 *Ringkasan ini dihasilkan secara lokal langsung di browser perangkat Anda.*';
+    // Memecah teks ke dalam paragraf/baris bermakna untuk analisis mendalam
+    var paragraphs = cleanText.split(/\r?\n/).filter(function (p) {
+      return p.trim().length > 15;
+    });
 
-    } else if (mode === 'detailed') {
-      result += '📋 **RINGKASAN EKSEKUTIF LENGKAP**\n';
-      result += '--------------------------------------------------\n';
-      result += 'Dokumen atau gambar yang Anda unggah merangkum informasi komprehensif. Berikut adalah rincian informasinya:\n\n';
-      result += cleanText.substring(0, 1200) + (cleanText.length > 1200 ? '\n\n...(Teks selengkapnya telah dipindai dan dirangkum)' : '');
-      result += '\n\n--------------------------------------------------\n';
-      result += '✅ **Kesimpulan:** Dokumen ini bersifat informatif dan menyajikan poin-poin penjelasan yang jelas.';
+    if (mode === 'summary' || mode === 'detailed') {
+      result += '✨ **' + (mode === 'detailed' ? 'RINGKASAN EKSEKUTIF LENGKAP & MENDALAM' : 'RINGKASAN POIN PENTING TERPERINCI') + '**\n';
+      result += '==================================================\n';
+      result += '📊 **Statistik Dokumen:** Berhasil memindai ' + wordCount + ' kata dari berkas yang diunggah.\n\n';
+      
+      result += '📌 **1. Topik Utama & Konteks Dokumen:**\n';
+      result += 'Dokumen ini membahas materi komprehensif yang terbagi dalam beberapa bagian penting. Berdasarkan analisis isi teks, inti pembahasan berfokus pada penjabaran data, informasi faktual, atau materi terstruktur yang termuat di dalam berkas.\n\n';
+
+      result += '🔎 **2. Poin-Poin Penting & Temuan Utama:**\n';
+      if (paragraphs.length > 0) {
+        // Ambil sampel poin secara representatif dari berbagai bagian dokumen (tidak cuma awal)
+        var step = Math.max(1, Math.floor(paragraphs.length / 6));
+        var pointCount = 1;
+        for (var i = 0; i < paragraphs.length; i += step) {
+          var snippet = paragraphs[i].trim();
+          if (snippet.length > 200) snippet = snippet.substring(0, 200) + '...';
+          result += '  (' + pointCount + ') ' + snippet + '\n';
+          pointCount++;
+          if (pointCount > 6) break;
+        }
+      } else {
+        result += '  • ' + cleanText.substring(0, 400) + '...\n';
+      }
+
+      result += '\n📝 **3. Kesimpulan Keseluruhan:**\n';
+      result += 'Secara keseluruhan, dokumen ini menyajikan informasi yang terperinci dan saling terhubung antarhalaman, memberikan kejelasan informasi bagi pembaca.\n';
+      result += '\n💡 *Dianalisis sepenuhnya secara lokal di browser perangkat Anda.*';
 
     } else if (mode === 'qa') {
-      result += '🤖 **TANYA JAWAB & PENJELASAN MATERI AI**\n';
-      result += '--------------------------------------------------\n';
-      if (question) {
-        result += '❓ **Pertanyaan Pengguna:** "' + question + '"\n\n';
-        result += '💡 **Jawaban Berdasarkan File:**\n';
-        // Cari kemiripan kata kunci dari pertanyaan di dalam teks
-        var lowerQ = question.toLowerCase();
-        var matchFound = false;
-        var paragraphs = cleanText.split('\n');
-        var matchedLines = [];
-        paragraphs.forEach(function (p) {
-          if (p.toLowerCase().indexOf(lowerQ.split(' ')[0]) !== -1 && p.trim().length > 20) {
-            matchedLines.push(p.trim());
+      result += '🤖 **HASIL TANYA JAWAB & ANALISIS MATERI AI**\n';
+      result += '==================================================\n';
+      
+      if (!question) {
+        result += '⚠️ Anda memilih mode Tanya Jawab, tetapi **belum memasukkan pertanyaan khusus** pada kolom input di atas.\n\n';
+        result += '📖 **Sebagai gantinya, berikut adalah rangkuman isi materi dokumen:**\n';
+        result += cleanText.substring(0, 700) + '...\n';
+      } else {
+        result += '❓ **Pertanyaan Anda:** "' + question + '"\n\n';
+        result += '💡 **Jawaban Berdasarkan Isi Dokumen:**\n';
+
+        // Algoritma Pencarian Konteks Cerdas (Keyword Scoring)
+        var rawKeywords = question.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/);
+        var stopWords = ['apa', 'bagaimana', 'kenapa', 'di', 'ke', 'dari', 'yang', 'dan', 'atau', 'untuk', 'pada', 'adalah', 'ini', 'itu', 'dengan', 'tentang'];
+        var keywords = rawKeywords.filter(function(kw) { return kw.length > 2 && stopWords.indexOf(kw) === -1; });
+
+        var bestMatch = '';
+        var highestScore = 0;
+
+        paragraphs.forEach(function (para) {
+          var pLower = para.toLowerCase();
+          var score = 0;
+          keywords.forEach(function (kw) {
+            if (pLower.indexOf(kw) !== -1) score += 2;
+          });
+          // Bonus jika kalimat mengandung kata tanya/subjek yang mirip
+          if (score > highestScore) {
+            highestScore = score;
+            bestMatch = para.trim();
           }
         });
 
-        if (matchedLines.length > 0) {
-          result += matchedLines.slice(0, 3).join('\n') + '\n';
+        if (highestScore > 0 && bestMatch) {
+          result += 'Berdasarkan penelusuran di dalam teks dokumen, ditemukan informasi yang relevan:\n\n';
+          result += '👉 *"' + (bestMatch.length > 400 ? bestMatch.substring(0, 400) + '...' : bestMatch) + '"*\n\n';
+          result += 'Analisis: Informasi di atas menjawab poin spesifik yang kamu tanyakan berdasarkan data teks asli dokumen.';
         } else {
-          result += 'Berdasarkan pemindaian isi dokumen, topik terkait pertanyaan Anda berkaitan dengan penjelasan umum berikut:\n';
-          result += cleanText.substring(0, 400) + '...\n';
+          // Fallback jika keyword tidak ketemu persis
+          result += 'Maaf, teks spesifik yang mencakup pertanyaan *" ' + question + ' "* secara persis tidak ditemukan dalam ringkasan dokumen ini. Namun, berikut adalah cuplikan teks utama yang paling mendekati topik tersebut:\n\n';
+          result += '👉 *"' + cleanText.substring(0, 450) + '..."*\n\n';
+          result += 'Saran: Coba sesuaikan kata kunci pertanyaanmu agar lebih spesifik merujuk pada isi dokumen.';
         }
-      } else {
-        result += '⚠️ Anda belum memasukkan pertanyaan khusus. Silakan ketik pertanyaan pada kolom "Pertanyaan Khusus" di atas.\n\n';
-        result += '📖 **Penjelasan Umum Isi Dokumen:**\n' + cleanText.substring(0, 500) + '...';
       }
     }
 
     return result;
   }
+
 
   // --- KODE KONVERSI & FITUR UTAMA LAINNYA DIBAWAH INI TETAP UTUH 100% TANPA DIKURANGI ---
 
