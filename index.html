@@ -93,6 +93,13 @@
         <p class="sidebar-label">RUANG KERJA</p>
         <button class="sidebar-link is-active" type="button" data-scroll-target="tools-section"><span>✦</span> Konversi file</button>
         <button class="sidebar-link" type="button" data-scroll-target="results-section"><span>◷</span> Hasil terbaru</button>
+        <button class="sidebar-link" type="button" data-scroll-target="ai-summarize-section">
+          <span>
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+          </span> AI Sumarice
+        </button>
         <div class="sidebar-rule"></div>
         <p class="sidebar-label">PRIVASI</p>
         <p class="privacy-copy"><i></i> File diproses di browser. Akun tersinkronisasi online.</p>
@@ -146,6 +153,60 @@
         <section class="results-section" id="results-section" hidden aria-labelledby="results-heading">
           <div class="section-heading small-heading"><div><p class="eyebrow">HASIL TERBARU</p><h2 id="results-heading">Siap diunduh.</h2></div><button class="outline-button" id="download-all" type="button">Unduh semua</button></div>
           <div class="result-list" id="result-list"></div>
+        </section>
+
+        <!-- Bagian AI Sumarice (Lokal) -->
+        <section class="workbench ai-workbench-section" id="ai-summarize-section" aria-labelledby="ai-workbench-title" style="margin-top: 30px;">
+          <div class="workbench-head">
+            <div>
+              <span class="active-tool-marker" id="ai-active-marker">AI SUMARICE</span>
+              <h2 id="ai-workbench-title">AI Summarize & Ringkasan Dokumen</h2>
+              <p id="ai-workbench-description">Unggah gambar atau PDF untuk diringkas dan dijawab pertanyaannya secara lokal di browser.</p>
+            </div>
+            <button class="text-button" id="ai-clear-files" type="button" disabled>Bersihkan file</button>
+          </div>
+          <div class="drop-zone" id="ai-drop-zone" tabindex="0" role="button" aria-describedby="ai-file-requirements">
+            <input id="ai-file-picker" type="file" hidden multiple accept="application/pdf,image/jpeg,image/png,image/webp">
+            <div class="drop-icon">✨</div>
+            <strong id="ai-drop-title">Tarik file PDF atau Gambar ke sini</strong>
+            <p id="ai-file-requirements">atau pilih dari perangkat · PDF, JPG, PNG, WebP · maksimal 5 file</p>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px;">
+              <button class="outline-button" id="ai-choose-files" type="button">Pilih file</button>
+            </div>
+          </div>
+          <div class="selected-files" id="ai-selected-files" hidden>
+            <div class="selected-files-head"><strong>File terpilih untuk AI</strong><span id="ai-selected-file-count">0 file</span></div>
+            <div class="file-list" id="ai-list"></div>
+          </div>
+
+          <div class="conversion-options" id="ai-conversion-options">
+            <div class="option-group" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; width: 100%;">
+              <label class="field compact">
+                <span>Mode Ringkasan / AI</span>
+                <select id="ai-mode-select">
+                  <option value="summary">Ringkasan Poin Penting (Bullet Points)</option>
+                  <option value="detailed">Ringkasan Eksekutif Lengkap</option>
+                  <option value="qa">Tanya Jawab & Penjelasan Materi</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button class="primary-button" id="run-ai-summarize" type="button" disabled>
+              <span id="ai-run-label">Mulai Ringkas dengan AI</span>
+              <b aria-hidden="true">→</b>
+            </button>
+            <p class="work-status" id="ai-work-status" role="status" aria-live="polite">Pilih file PDF atau gambar untuk memulai.</p>
+          </div>
+          
+          <div id="ai-result-area" style="margin-top: 20px;" hidden>
+            <div class="section-heading small-heading">
+              <div><p class="eyebrow">HASIL AI SUMARICE</p><h2>Ringkasan & Jawaban</h2></div>
+              <button class="outline-button" id="copy-ai-output" type="button">Salin Teks</button>
+            </div>
+            <div id="ai-output-box" style="background: var(--surface-hover); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color); white-space: pre-wrap; font-size: 0.95rem; max-height: 400px; overflow-y: auto;"></div>
+          </div>
         </section>
 
         <section class="disclaimer"><span>⌁</span><p><strong>Catatan aliDEV😁:</strong> Konversi gambar, PDF, dan audio dikerjakan penuh di browser. Akun dan riwayat tersinkron di Cloud kami.</p></section>
