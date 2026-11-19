@@ -15,7 +15,7 @@
   var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVJF_S4no-HGXpY7FO8APSi2UAJLotmfm3K2LPUcDV9F7ffZP1Qn6Tv5Sdq7T3MZI_/exec";
   // Khusus AI Sumarice: melalui Cloudflare Worker perantara agar API key tetap aman di server.
   var AI_PROXY_URL = 'https://alidev-gemini-proxy.muhammadali-alrafqi916.workers.dev';
-  var GEMINI_MODEL = 'gemini-3.8-flash';
+  var GEMINI_MODEL = 'gemini-flash-latest';
 
   var toastQueue = [];
   var toastVisible = false;
