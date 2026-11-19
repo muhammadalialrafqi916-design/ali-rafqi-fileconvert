@@ -552,8 +552,83 @@
 
       var aiResponseText = resultJson.text;
 
+  function escapeAiHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderAiMarkdown(markdown) {
+    var escaped = escapeAiHtml(markdown || '').replace(/\r\n/g, '\n');
+    var lines = escaped.split('\n');
+    var html = [];
+    var inUl = false;
+    var inOl = false;
+
+    function formatInline(text) {
+      return text
+        .replace(/`([^`]+)`/g, '<code style="background:rgba(128,128,128,0.18);padding:2px 5px;border-radius:4px;font-family:monospace;font-size:0.9em;">$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    }
+
+    function closeLists() {
+      if (inUl) { html.push('</ul>'); inUl = false; }
+      if (inOl) { html.push('</ol>'); inOl = false; }
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) {
+        closeLists();
+        continue;
+      }
+
+      var h3 = line.match(/^###\s+(.+)$/);
+      var h2 = line.match(/^##\s+(.+)$/);
+      var h1 = line.match(/^#\s+(.+)$/);
+      var ul = line.match(/^[-*•]\s+(.+)$/);
+      var ol = line.match(/^\d+\.\s+(.+)$/);
+
+      if (h3) {
+        closeLists();
+        html.push('<h4 style="margin:14px 0 6px;font-size:1rem;font-weight:700;">' + formatInline(h3[1]) + '</h4>');
+      } else if (h2) {
+        closeLists();
+        html.push('<h3 style="margin:16px 0 8px;font-size:1.08rem;font-weight:700;">' + formatInline(h2[1]) + '</h3>');
+      } else if (h1) {
+        closeLists();
+        html.push('<h2 style="margin:16px 0 8px;font-size:1.18rem;font-weight:800;">' + formatInline(h1[1]) + '</h2>');
+      } else if (ul) {
+        if (inOl) { html.push('</ol>'); inOl = false; }
+        if (!inUl) { html.push('<ul style="margin:6px 0 10px 20px;padding:0;list-style:disc;">'); inUl = true; }
+        html.push('<li style="margin:4px 0;">' + formatInline(ul[1]) + '</li>');
+      } else if (ol) {
+        if (inUl) { html.push('</ul>'); inUl = false; }
+        if (!inOl) { html.push('<ol style="margin:6px 0 10px 20px;padding:0;list-style:decimal;">'); inOl = true; }
+        html.push('<li style="margin:4px 0;">' + formatInline(ol[1]) + '</li>');
+      } else if (/^---+$/.test(line)) {
+        closeLists();
+        html.push('<hr style="border:none;border-top:1px solid var(--border-color);margin:12px 0;">');
+      } else {
+        closeLists();
+        html.push('<p style="margin:6px 0;">' + formatInline(line) + '</p>');
+      }
+    }
+
+    closeLists();
+    return html.join('');
+  }
+
       updateAiProgress(100, 'Selesai!');
-      if (el['ai-output-box']) el['ai-output-box'].textContent = aiResponseText.trim();
+      if (el['ai-output-box']) {
+        el['ai-output-box'].dataset.rawText = aiResponseText.trim();
+        el['ai-output-box'].style.whiteSpace = 'normal';
+        el['ai-output-box'].innerHTML = renderAiMarkdown(aiResponseText.trim());
+      }
       if (el['ai-results-section']) el['ai-results-section'].hidden = false;
       setAiStatus('Analisis dan ringkasan Gemini AI berhasil dibuat!');
       showToast('AI Sumarice selesai!', 'success');
