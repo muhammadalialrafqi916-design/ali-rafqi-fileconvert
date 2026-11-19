@@ -15,8 +15,8 @@
   var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVJF_S4no-HGXpY7FO8APSi2UAJLotmfm3K2LPUcDV9F7ffZP1Qn6Tv5Sdq7T3MZI_/exec";
   // Khusus AI Sumarice: melalui Cloudflare Worker perantara agar API key tetap aman di server.
   var AI_PROXY_URL = 'https://alidev-gemini-proxy.muhammadali-alrafqi916.workers.dev';
-  var GEMINI_MODEL = 'gemini-flash-latest';
-
+  var GEMINI_MODEL = 'gemini-2.5-flash';
+  
   var toastQueue = [];
   var toastVisible = false;
   var installPromptEvent = null;
@@ -484,7 +484,7 @@
   }
 
   // Logika Utama Pemrosesan AI Sumarice (Ekstraksi Lokal + Penyusunan Ringkasan & Jawaban Cerdas)
-    async function runAiSummarize() {
+async function runAiSummarize() {
     if (state.aiProcessing || !state.aiFiles.length) return;
     state.aiProcessing = true;
     if (el['run-ai-summarize']) el['run-ai-summarize'].disabled = true;
@@ -511,7 +511,7 @@
           var buffer = await readFileAsArrayBuffer(file);
           var pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
           var fileText = '';
-          var maxPagesToScan = Math.min(pdf.numPages, 25);
+          var maxPagesToScan = Math.min(pdf.numPages, 15);
           for (var p = 1; p <= maxPagesToScan; p++) {
             var page = await pdf.getPage(p);
             var textContent = await page.getTextContent();
@@ -541,6 +541,10 @@
         throw new Error('Tidak ada teks yang dapat dibaca dari file tersebut. Pastikan PDF berisi teks atau gambar cukup jelas.');
       }
 
+      if (cleanExtracted.length > 28000) {
+        cleanExtracted = cleanExtracted.slice(0, 28000) + '\n\n[Teks dipotong agar proses AI lebih cepat dan tidak timeout]';
+      }
+
       updateAiProgress(65, 'Mengirim data ke Gemini AI via server perantara...');
 
       var promptInstruction = 'Kamu adalah asisten AI profesional di AliDev File Studio. Berikut adalah teks mentah hasil ekstraksi dari file milik pengguna:\n\n' +
@@ -561,17 +565,30 @@
         }
       }
 
-      // Panggilan aman melalui Cloudflare Worker perantara (API key tersimpan di Secret Cloudflare).
-      var response = await fetch(AI_PROXY_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          prompt: promptInstruction,
-          model: GEMINI_MODEL
-        })
-      });
+      var controller = new AbortController();
+      var clientTimeout = setTimeout(function () { controller.abort(); }, 35000);
+      var response = null;
+
+      try {
+        response = await fetch(AI_PROXY_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            prompt: promptInstruction,
+            model: GEMINI_MODEL
+          }),
+          signal: controller.signal
+        });
+      } catch (fetchErr) {
+        if (fetchErr && fetchErr.name === 'AbortError') {
+          throw new Error('Request timeout (504): AI tidak merespon dalam batas waktu.');
+        }
+        throw new Error('AI tidak merespon: ' + (fetchErr && fetchErr.message ? fetchErr.message : 'Gagal terhubung ke server.'));
+      } finally {
+        clearTimeout(clientTimeout);
+      }
 
       var rawResponseText = await response.text();
       var resultJson = null;
