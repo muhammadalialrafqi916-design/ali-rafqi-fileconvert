@@ -484,7 +484,7 @@
   }
 
   // Logika Utama Pemrosesan AI Sumarice (Ekstraksi Lokal + Penyusunan Ringkasan & Jawaban Cerdas)
-async function runAiSummarize() {
+ async function runAiSummarize() {
     if (state.aiProcessing || !state.aiFiles.length) return;
     state.aiProcessing = true;
     if (el['run-ai-summarize']) el['run-ai-summarize'].disabled = true;
@@ -566,7 +566,7 @@ async function runAiSummarize() {
       }
 
       var controller = new AbortController();
-      var clientTimeout = setTimeout(function () { controller.abort(); }, 35000);
+      var clientTimeout = setTimeout(function () { controller.abort(); }, 90000);
       var response = null;
 
       try {
