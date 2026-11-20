@@ -495,6 +495,47 @@
     return 'application/octet-stream';
   }
 
+  function sanitizeAiErrorMessage(msg) {
+    var text = String(msg || '');
+    if (!text) return 'Terjadi gangguan sementara saat memproses dokumen. Silakan coba lagi.';
+    if (/https?:\/\/|key=|Exception:|Timeout/i.test(text)) {
+      if (/timeout/i.test(text)) {
+        return 'Permintaan ke server AI melewati batas waktu (timeout). Silakan coba lagi.';
+      }
+      return 'Terjadi gangguan koneksi ke server AI. Silakan coba lagi sebentar lagi.';
+    }
+    return text;
+  }
+
+  async function compressImageForAi(file) {
+    var dataUrl = await readFileAsDataUrl(file);
+    var img = await loadImageFromUrl(dataUrl);
+    var maxDim = 1024;
+    var w = img.naturalWidth || img.width;
+    var h = img.naturalHeight || img.height;
+
+    if (w <= maxDim && h <= maxDim && file.size <= 350 * 1024) {
+      return {
+        mimeType: getAiFileMimeType(file),
+        base64: String(dataUrl).split(',')[1] || ''
+      };
+    }
+
+    var scale = Math.min(1, maxDim / Math.max(w, h));
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    var compressedUrl = canvas.toDataURL('image/jpeg', 0.78);
+    return {
+      mimeType: 'image/jpeg',
+      base64: String(compressedUrl).split(',')[1] || ''
+    };
+  }
+
   // Logika Utama Pemrosesan AI Sumarice (Kirim file langsung ke Gemini AI via Backend Proxy Aman)
   async function runAiSummarize() {
     if (state.aiProcessing || !state.aiFiles.length) return;
@@ -512,20 +553,29 @@
 
       for (var i = 0; i < state.aiFiles.length; i++) {
         var file = state.aiFiles[i];
+        var mimeType = getAiFileMimeType(file);
         updateAiProgress(
           ((i + 0.5) / state.aiFiles.length) * 45,
           'Menyiapkan file ' + (i + 1) + '/' + state.aiFiles.length + ' (' + file.name + ')'
         );
 
-        var dataUrl = await readFileAsDataUrl(file);
-        var base64Data = String(dataUrl).split(',')[1] || '';
+        var base64Data = '';
+        if (mimeType.indexOf('image/') === 0) {
+          var compressed = await compressImageForAi(file);
+          mimeType = compressed.mimeType;
+          base64Data = compressed.base64;
+        } else {
+          var dataUrl = await readFileAsDataUrl(file);
+          base64Data = String(dataUrl).split(',')[1] || '';
+        }
+
         if (!base64Data) {
           throw new Error('Gagal membaca data file ' + file.name + '.');
         }
 
         encodedFiles.push({
           name: file.name,
-          mimeType: getAiFileMimeType(file),
+          mimeType: mimeType,
           base64: base64Data
         });
       }
@@ -633,8 +683,7 @@
       setAiStatus('Analisis dan ringkasan Gemini AI berhasil dibuat!');
       showToast('AI Sumarice selesai!', 'success');
     } catch (err) {
-      console.error(err);
-      setAiStatus('Gagal memproses AI: ' + err.message, true);
+      setAiStatus('Gagal memproses AI: ' + sanitizeAiErrorMessage(err && err.message), true);
       showToast('Gagal memproses dokumen dengan AI.', 'error');
     } finally {
       state.aiProcessing = false;
