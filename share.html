@@ -6,6 +6,7 @@
   <meta name="description" content="Unduh file yang dibagikan melalui AliDev File Studio.">
   <meta name="theme-color" content="#131228">
   <title>File dibagikan · AliDev File Studio</title>
+  <link rel="icon" type="image/svg+xml" href="app-icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -22,6 +23,12 @@
   <script>
     (function () {
       'use strict';
+
+      try {
+        var savedTheme = localStorage.getItem('aliRafqiFileStudio.theme.v1');
+        var shouldUseDark = savedTheme === 'dark' || (!savedTheme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.body.classList.toggle('dark-theme', shouldUseDark);
+      } catch (e) {}
 
       var SUPABASE_URL = 'https://vdugagtqchydcjoqegsh.supabase.co';
       var SUPABASE_ANON_KEY = 'sb_publishable_b67btfPJYVb7Uc2oTonFIg_XQfwr7Hy';
@@ -47,7 +54,7 @@
             if (response.error.code === 'PGRST116') { renderUnavailable(); return; }
             throw response.error;
           }
-          if (!response.data || new Date(response.data.expires_at).getTime() <= Date.now()) {
+          if (!response.data || !isSafeHttpUrl(response.data.public_url) || new Date(response.data.expires_at).getTime() <= Date.now()) {
             renderUnavailable();
             return;
           }
@@ -82,9 +89,8 @@
 
         var download = document.createElement('a');
         download.className = 'primary-button public-download';
-        download.href = file.public_url;
+        download.href = buildDownloadUrl(file.public_url, file.filename);
         download.download = file.filename || 'file';
-        download.target = '_blank';
         download.rel = 'noopener noreferrer';
         download.innerHTML = '<span>Unduh File</span><b aria-hidden="true">↓</b>';
 
@@ -132,6 +138,21 @@
         var heading = document.createElement('h1'); heading.textContent = 'Terjadi kendala';
         var description = document.createElement('p'); description.textContent = message;
         content.append(mark, heading, description);
+      }
+
+      function isSafeHttpUrl(url) {
+        return /^https?:\/\//i.test(String(url || ''));
+      }
+
+      function buildDownloadUrl(publicUrl, filename) {
+        if (!isSafeHttpUrl(publicUrl)) return '#';
+        try {
+          var parsedUrl = new URL(publicUrl);
+          parsedUrl.searchParams.set('download', filename || 'file');
+          return parsedUrl.href;
+        } catch (e) {
+          return publicUrl;
+        }
       }
 
       function formatBytes(bytes) {
