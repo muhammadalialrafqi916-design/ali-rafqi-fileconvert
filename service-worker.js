@@ -1,5 +1,5 @@
 /* AliDev File Studio: update app files online and use cached copies offline. */
-const CACHE_NAME = 'alidev-file-studio-v3';
+const CACHE_NAME = 'alidev-file-studio-v4';
 const SHELL_ASSETS = ['./', './index.html', './share.html', './styles.css', './app.js', './manifest.json', './app-icon.svg', './app-icon-192.png', './app-icon-512.png'];
 const CDN_ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
