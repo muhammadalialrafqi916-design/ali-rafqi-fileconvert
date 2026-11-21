@@ -9,6 +9,7 @@
   var PDF_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   var MAX_FILE_SIZE = 80 * 1024 * 1024;
   var MAX_TOTAL_SIZE = 200 * 1024 * 1024;
+  var MAX_SHARED_FILE_SIZE = 50 * 1024 * 1024;
   var MAX_IMAGE_PIXELS = 40000000;
   var MAX_PDF_PAGES = 60;
 
@@ -23,6 +24,8 @@
     selectedTool: 'images',
     files: [],
     results: [],
+    sharedLinks: [],
+    pendingShareResult: null,
     processing: false,
     lastFailures: [],
     // State khusus AI Sumarice
@@ -110,7 +113,8 @@
       'file-picker', 'drop-zone', 'drop-title', 'file-requirements', 'choose-files', 'selected-files', 'selected-file-count',
       'file-list', 'clear-files', 'active-tool-marker', 'workbench-title', 'workbench-description', 'conversion-options',
       'run-conversion', 'run-label', 'work-status', 'progress-wrap', 'progress-label', 'progress-value', 'progress-bar',
-      'results-section', 'result-list', 'download-all', 'history-dialog', 'history-list', 'clear-history', 'settings-dialog', 'global-toast',
+      'results-section', 'result-list', 'download-all', 'history-dialog', 'history-list', 'shared-links-history-list', 'clear-history', 'settings-dialog', 'global-toast',
+      'share-link-dialog', 'share-create-controls', 'share-expiry-select', 'create-share-link', 'share-link-result', 'share-file-name', 'share-expiry-display', 'share-link-input', 'share-qr-code', 'copy-share-link', 'download-qr-png', 'share-link-status',
       'gdrive-dialog', 'open-gdrive-modal', 'gdrive-link-input', 'fetch-gdrive-file',
       // Elemen UI Navigasi Tampilan & AI Sumarice
       'converter-workspace-view', 'ai-summarize-view', 'nav-converter-btn', 'nav-results-btn', 'nav-ai-summarize-btn',
@@ -262,6 +266,13 @@
       button.addEventListener('click', function () { this.closest('dialog').close(); });
     });
     if (el['clear-history']) el['clear-history'].addEventListener('click', clearHistory);
+    document.querySelectorAll('[data-history-tab]').forEach(function (button) {
+      button.addEventListener('click', function () { setHistoryTab(this.dataset.historyTab); });
+    });
+    if (el['history-dialog']) el['history-dialog'].addEventListener('click', handleHistoryDialogClick);
+    if (el['create-share-link']) el['create-share-link'].addEventListener('click', createShareLinkForPendingResult);
+    if (el['copy-share-link']) el['copy-share-link'].addEventListener('click', copyCurrentShareLink);
+    if (el['download-qr-png']) el['download-qr-png'].addEventListener('click', downloadCurrentQrPng);
     if (el['open-settings']) el['open-settings'].addEventListener('click', function () { el['settings-dialog'].showModal(); });
     if (el['logout-button']) el['logout-button'].addEventListener('click', logout);
     if (el['delete-local-data']) el['delete-local-data'].addEventListener('click', deleteAllLocalData);
@@ -347,6 +358,13 @@
               showToast('Gagal membagikan file.', 'error');
             }
           }
+          return;
+        }
+
+        var createLinkBtn = event.target.closest('[data-create-share-link]');
+        if (createLinkBtn) {
+          var shareIndex = Number(createLinkBtn.dataset.createShareLink);
+          openShareDialogForResult(state.results[shareIndex]);
           return;
         }
       });
@@ -1089,8 +1107,12 @@
         id: Date.now(),
         timestamp: Date.now(),
         filename: resultData.filename,
-        sizeBytes: resultData.blob.size,
-        toolUsed: state.selectedTool
+        sizeBytes: resultData.blob ? resultData.blob.size : Number(resultData.sizeBytes || 0),
+        toolUsed: state.selectedTool,
+        shareCode: resultData.shareCode || null,
+        shareUrl: resultData.shareUrl || null,
+        shareFilePath: resultData.shareFilePath || null,
+        expiresAt: resultData.expiresAt || null
       };
       
       state.currentUser.history.unshift(newEntry);
@@ -1107,7 +1129,10 @@
         .eq('id', state.currentUser.id);
 
       updateHistoryBadge();
-    } catch (e) { console.error('Gagal simpan riwayat ke cloud', e); }
+    } catch (e) {
+      console.error('Gagal simpan riwayat ke cloud', e);
+      showToast('Gagal menyimpan riwayat ke cloud: ' + getErrorMessage(e), 'error');
+    }
   }
 
   function updateHistoryBadge() {
@@ -1116,27 +1141,356 @@
     el['history-count'].textContent = history.length ? history.length : '';
   }
 
-  function openHistory() {
+  function setHistoryTab(tabName) {
+    var activeTab = tabName === 'shared-links' ? 'shared-links' : 'downloads';
+    document.querySelectorAll('[data-history-tab]').forEach(function (button) {
+      var active = button.dataset.historyTab === activeTab;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+    document.querySelectorAll('[data-history-pane]').forEach(function (pane) {
+      var active = pane.dataset.historyPane === activeTab;
+      pane.classList.toggle('is-active', active);
+      pane.hidden = !active;
+    });
+    if (el['clear-history']) el['clear-history'].hidden = activeTab !== 'downloads';
+  }
+
+  function renderDownloadHistory() {
     if (!el['history-list'] || !state.currentUser) return;
     el['history-list'].replaceChildren();
-    
     var history = state.currentUser.history || [];
     if (!history.length) {
-      var li = document.createElement('li');
-      li.textContent = 'Belum ada catatan unduhan.';
-      li.style.color = 'var(--text-secondary)'; li.style.textAlign = 'center';
-      el['history-list'].append(li);
+      var empty = document.createElement('div');
+      empty.className = 'empty-history';
+      empty.textContent = 'Belum ada catatan unduhan.';
+      el['history-list'].append(empty);
     } else {
       history.forEach(function (h) {
-        var li = document.createElement('li');
-        var name = document.createElement('strong'); name.textContent = h.filename;
-        var details = document.createElement('span'); details.className = 'history-details';
+        var item = document.createElement('div'); item.className = 'history-record';
+        var copy = document.createElement('div'); copy.className = 'history-record-copy';
+        var name = document.createElement('strong'); name.textContent = h.filename || 'File tanpa nama';
+        var details = document.createElement('span');
         var date = new Date(h.timestamp);
-        details.textContent = formatBytes(h.sizeBytes) + ' • ' + h.toolUsed + ' • ' + date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        li.append(name, details); el['history-list'].append(li);
+        details.textContent = formatBytes(Number(h.sizeBytes || 0)) + ' • ' + (h.toolUsed || 'Konversi') + ' • ' + date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        copy.append(name, details); item.append(copy);
+        if (h.shareUrl && h.shareCode) {
+          var actions = document.createElement('div'); actions.className = 'history-record-actions';
+          var view = document.createElement('button'); view.className = 'history-action'; view.type = 'button';
+          view.dataset.viewHistoryShare = String(h.id); view.textContent = 'Lihat Link & QR';
+          actions.append(view); item.append(actions);
+        }
+        el['history-list'].append(item);
       });
     }
+  }
+
+  async function loadSharedLinksHistory() {
+    if (!el['shared-links-history-list'] || !state.currentUser || !state.currentUser.id) return;
+    el['shared-links-history-list'].replaceChildren();
+    var loading = document.createElement('div'); loading.className = 'empty-history'; loading.textContent = 'Memuat tautan dibagikan…';
+    el['shared-links-history-list'].append(loading);
+    try {
+      var response = await supabaseClient
+        .from('shared_links')
+        .select('id, short_code, file_path, public_url, filename, mime_type, file_size, expires_at, download_count, created_at')
+        .eq('user_id', state.currentUser.id)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false });
+      if (response.error) throw response.error;
+      state.sharedLinks = response.data || [];
+      renderSharedLinksHistory();
+    } catch (error) {
+      state.sharedLinks = [];
+      el['shared-links-history-list'].replaceChildren();
+      var failed = document.createElement('div'); failed.className = 'empty-history'; failed.textContent = 'Tautan dibagikan belum dapat dimuat.';
+      el['shared-links-history-list'].append(failed);
+      showToast('Gagal memuat tautan dibagikan: ' + getErrorMessage(error), 'error');
+    }
+  }
+
+  function renderSharedLinksHistory() {
+    if (!el['shared-links-history-list']) return;
+    el['shared-links-history-list'].replaceChildren();
+    if (!state.sharedLinks.length) {
+      var empty = document.createElement('div'); empty.className = 'empty-history'; empty.textContent = 'Belum ada tautan aktif yang dibagikan.';
+      el['shared-links-history-list'].append(empty);
+      return;
+    }
+    state.sharedLinks.forEach(function (link) {
+      var item = document.createElement('div'); item.className = 'history-record';
+      var copy = document.createElement('div'); copy.className = 'history-record-copy';
+      var name = document.createElement('strong'); name.textContent = link.filename || 'File tanpa nama';
+      var detail = document.createElement('span');
+      detail.textContent = formatBytes(Number(link.file_size || 0)) + ' • aktif ' + formatRemainingTime(link.expires_at);
+      copy.append(name, detail);
+      var actions = document.createElement('div'); actions.className = 'history-record-actions';
+      var copyButton = document.createElement('button'); copyButton.className = 'history-action'; copyButton.type = 'button'; copyButton.dataset.copySharedLink = link.short_code; copyButton.textContent = 'Salin Link';
+      var qrButton = document.createElement('button'); qrButton.className = 'history-action'; qrButton.type = 'button'; qrButton.dataset.openSharedQr = link.short_code; qrButton.textContent = 'Buka QR';
+      var deleteButton = document.createElement('button'); deleteButton.className = 'history-action is-danger'; deleteButton.type = 'button'; deleteButton.dataset.deleteSharedLink = link.id; deleteButton.textContent = 'Hapus Link';
+      actions.append(copyButton, qrButton, deleteButton); item.append(copy, actions);
+      el['shared-links-history-list'].append(item);
+    });
+  }
+
+  async function openHistory() {
+    if (!el['history-list'] || !state.currentUser) return;
+    setHistoryTab('downloads');
+    renderDownloadHistory();
     if (el['history-dialog']) el['history-dialog'].showModal();
+    await loadSharedLinksHistory();
+  }
+
+  async function handleHistoryDialogClick(event) {
+    var historyShareButton = event.target.closest('[data-view-history-share]');
+    if (historyShareButton) {
+      var history = state.currentUser && state.currentUser.history ? state.currentUser.history : [];
+      var entry = history.find(function (item) { return String(item.id) === historyShareButton.dataset.viewHistoryShare; });
+      if (!entry) { showToast('Data tautan pada riwayat tidak ditemukan.', 'error'); return; }
+      openExistingShareLink({ short_code: entry.shareCode, filename: entry.filename, expires_at: entry.expiresAt, file_size: entry.sizeBytes });
+      return;
+    }
+    var copyButton = event.target.closest('[data-copy-shared-link]');
+    if (copyButton) {
+      try {
+        await copyTextToClipboard(buildShareUrl(copyButton.dataset.copySharedLink));
+        showToast('Tautan berhasil disalin.', 'success');
+      } catch (error) {
+        showToast('Gagal menyalin tautan: ' + getErrorMessage(error), 'error');
+      }
+      return;
+    }
+    var qrButton = event.target.closest('[data-open-shared-qr]');
+    if (qrButton) {
+      var qrLink = state.sharedLinks.find(function (item) { return item.short_code === qrButton.dataset.openSharedQr; });
+      if (!qrLink) { showToast('Tautan tidak ditemukan.', 'error'); return; }
+      openExistingShareLink(qrLink);
+      return;
+    }
+    var deleteButton = event.target.closest('[data-delete-shared-link]');
+    if (deleteButton) await deleteSharedLink(deleteButton.dataset.deleteSharedLink);
+  }
+
+  function openShareDialogForResult(result) {
+    if (!state.currentUser || !state.currentUser.id) { showToast('Masuk ke akun untuk membuat tautan bagikan.', 'error'); return; }
+    if (!result || !result.blob) { showToast('File hasil tidak tersedia untuk dibagikan.', 'error'); return; }
+    if (result.blob.size > MAX_SHARED_FILE_SIZE) { showToast('File untuk tautan bagikan maksimal 50 MB.', 'error'); return; }
+    state.pendingShareResult = result;
+    if (el['share-create-controls']) el['share-create-controls'].hidden = false;
+    if (el['share-link-result']) el['share-link-result'].hidden = true;
+    if (el['share-expiry-select']) el['share-expiry-select'].value = '24';
+    setShareStatus('');
+    if (el['share-link-dialog'] && !el['share-link-dialog'].open) el['share-link-dialog'].showModal();
+  }
+
+  function openExistingShareLink(link) {
+    if (!link || !link.short_code) { showToast('Tautan tidak valid.', 'error'); return; }
+    state.pendingShareResult = null;
+    if (el['share-create-controls']) el['share-create-controls'].hidden = true;
+    if (el['history-dialog'] && el['history-dialog'].open) el['history-dialog'].close();
+    if (el['share-link-dialog'] && !el['share-link-dialog'].open) el['share-link-dialog'].showModal();
+    showShareLinkResult(link);
+  }
+
+  async function createShareLinkForPendingResult() {
+    var result = state.pendingShareResult;
+    if (!result || !result.blob) { showToast('Pilih hasil file yang ingin dibagikan terlebih dahulu.', 'error'); return; }
+    if (!state.currentUser || !state.currentUser.id) { showToast('Masuk ke akun untuk membuat tautan bagikan.', 'error'); return; }
+    if (result.blob.size > MAX_SHARED_FILE_SIZE) { showToast('File untuk tautan bagikan maksimal 50 MB.', 'error'); return; }
+
+    var expiryHours = Number(el['share-expiry-select'] && el['share-expiry-select'].value);
+    if ([1, 24, 168].indexOf(expiryHours) === -1) expiryHours = 24;
+    var button = el['create-share-link'];
+    if (button) { button.disabled = true; button.textContent = 'Membuat tautan…'; }
+    setShareStatus('Mengunggah file dan membuat tautan publik…');
+
+    try {
+      var link = await createSharedLink(result, expiryHours);
+      await saveToHistory(Object.assign({}, result, {
+        shareCode: link.short_code,
+        shareUrl: buildShareUrl(link.short_code),
+        shareFilePath: link.file_path,
+        expiresAt: link.expires_at
+      }));
+      state.sharedLinks = state.sharedLinks.filter(function (item) { return item.id !== link.id; });
+      state.sharedLinks.unshift(link);
+      if (el['history-dialog'] && el['history-dialog'].open) renderSharedLinksHistory();
+      if (el['share-create-controls']) el['share-create-controls'].hidden = true;
+      showShareLinkResult(link);
+      setShareStatus('Tautan aktif berhasil dibuat.', 'success');
+      showToast('Tautan dan Kode QR berhasil dibuat.', 'success');
+    } catch (error) {
+      var message = 'Gagal membuat tautan bagikan: ' + getErrorMessage(error);
+      setShareStatus(message, 'error');
+      showToast(message, 'error');
+    } finally {
+      if (button) { button.disabled = false; button.innerHTML = '<span>Buat Tautan &amp; QR</span><b aria-hidden="true">→</b>'; }
+    }
+  }
+
+  async function createSharedLink(result, expiryHours) {
+    var blob = result.blob;
+    var expiresAt = new Date(Date.now() + (expiryHours * 60 * 60 * 1000)).toISOString();
+    var safeFilename = makeSafeFilename(result.filename);
+    var lastError;
+
+    for (var attempt = 0; attempt < 3; attempt += 1) {
+      var shortCode = generateShortCode();
+      var filePath = state.currentUser.id + '/' + Date.now() + '_' + shortCode + '_' + safeFilename;
+      var upload = await supabaseClient.storage.from('shared-files').upload(filePath, blob, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: blob.type || 'application/octet-stream'
+      });
+      if (upload.error) throw upload.error;
+
+      var publicResponse = supabaseClient.storage.from('shared-files').getPublicUrl(filePath);
+      var publicUrl = publicResponse && publicResponse.data && publicResponse.data.publicUrl;
+      if (!publicUrl) {
+        var publicUrlCleanup = await supabaseClient.storage.from('shared-files').remove([filePath]);
+        if (publicUrlCleanup.error) throw publicUrlCleanup.error;
+        throw new Error('URL publik file tidak dapat dibuat.');
+      }
+
+      var insert = await supabaseClient.from('shared_links').insert({
+        short_code: shortCode,
+        user_id: state.currentUser.id,
+        file_path: filePath,
+        public_url: publicUrl,
+        filename: result.filename || safeFilename,
+        mime_type: blob.type || 'application/octet-stream',
+        file_size: blob.size,
+        expires_at: expiresAt,
+        download_count: 0
+      }).select().single();
+
+      if (!insert.error) return insert.data;
+
+      lastError = insert.error;
+      var insertCleanup = await supabaseClient.storage.from('shared-files').remove([filePath]);
+      if (insertCleanup.error) throw insertCleanup.error;
+      if (!(insert.error.code === '23505' || /duplicate|unique/i.test(getErrorMessage(insert.error)))) throw insert.error;
+    }
+    throw lastError || new Error('Kode tautan unik tidak dapat dibuat. Coba lagi.');
+  }
+
+  function showShareLinkResult(link) {
+    var shareUrl = buildShareUrl(link.short_code);
+    if (el['share-file-name']) el['share-file-name'].textContent = link.filename || 'File dibagikan';
+    if (el['share-expiry-display']) el['share-expiry-display'].textContent = 'Aktif ' + formatRemainingTime(link.expires_at) + '.';
+    if (el['share-link-input']) el['share-link-input'].value = shareUrl;
+    if (el['share-link-result']) el['share-link-result'].hidden = false;
+    try {
+      renderShareQr(shareUrl);
+    } catch (error) {
+      setShareStatus('Kode QR gagal dibuat: ' + getErrorMessage(error), 'error');
+      showToast('Kode QR gagal dibuat: ' + getErrorMessage(error), 'error');
+    }
+  }
+
+  function renderShareQr(shareUrl) {
+    if (!el['share-qr-code']) throw new Error('Area Kode QR tidak tersedia.');
+    if (!window.QRCode) throw new Error('Library Kode QR belum dimuat.');
+    el['share-qr-code'].replaceChildren();
+    var QRCode = window.QRCode;
+    new QRCode(el['share-qr-code'], {
+      text: shareUrl,
+      width: 220,
+      height: 220,
+      colorDark: '#131228',
+      colorLight: '#ffffff',
+      correctLevel: window.QRCode.CorrectLevel.H
+    });
+  }
+
+  async function copyCurrentShareLink() {
+    try {
+      await copyTextToClipboard(el['share-link-input'] && el['share-link-input'].value);
+      showToast('Tautan berhasil disalin.', 'success');
+    } catch (error) {
+      showToast('Gagal menyalin tautan: ' + getErrorMessage(error), 'error');
+    }
+  }
+
+  async function downloadCurrentQrPng() {
+    try {
+      var qrContainer = el['share-qr-code'];
+      var canvas = qrContainer && qrContainer.querySelector('canvas');
+      var image = qrContainer && qrContainer.querySelector('img');
+      var pngBlob;
+      if (canvas) {
+        pngBlob = await new Promise(function (resolve, reject) {
+          canvas.toBlob(function (blob) { if (blob) resolve(blob); else reject(new Error('Gambar QR tidak dapat dibuat.')); }, 'image/png');
+        });
+      } else if (image && image.src) {
+        var imageResponse = await fetch(image.src);
+        if (!imageResponse.ok) throw new Error('Gambar QR tidak dapat diunduh.');
+        pngBlob = await imageResponse.blob();
+      } else {
+        throw new Error('Kode QR belum tersedia.');
+      }
+      downloadBlob(pngBlob, 'ali-dev-qr-' + Date.now() + '.png');
+      showToast('Kode QR PNG berhasil diunduh.', 'success');
+    } catch (error) {
+      showToast('Gagal mengunduh Kode QR: ' + getErrorMessage(error), 'error');
+    }
+  }
+
+  async function deleteSharedLink(linkId) {
+    var link = state.sharedLinks.find(function (item) { return String(item.id) === String(linkId); });
+    if (!link || !state.currentUser) { showToast('Tautan tidak ditemukan.', 'error'); return; }
+    if (!confirm('Hapus tautan ini? File publiknya juga akan dihapus.')) return;
+    try {
+      if (link.file_path) {
+        var removal = await supabaseClient.storage.from('shared-files').remove([link.file_path]);
+        if (removal.error) throw removal.error;
+      }
+      var deletion = await supabaseClient.from('shared_links').delete().eq('id', link.id).eq('user_id', state.currentUser.id);
+      if (deletion.error) throw deletion.error;
+      state.sharedLinks = state.sharedLinks.filter(function (item) { return String(item.id) !== String(link.id); });
+      renderSharedLinksHistory();
+      showToast('Tautan dan file publik berhasil dihapus.', 'success');
+    } catch (error) {
+      showToast('Gagal menghapus tautan: ' + getErrorMessage(error), 'error');
+    }
+  }
+
+  function buildShareUrl(shortCode) { return window.location.origin + '/share.html?code=' + encodeURIComponent(shortCode); }
+
+  function generateShortCode() {
+    var alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    var bytes = new Uint8Array(8);
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (var i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    return Array.prototype.map.call(bytes, function (byte) { return alphabet.charAt(byte % alphabet.length); }).join('');
+  }
+
+  function makeSafeFilename(filename) {
+    var safe = String(filename || 'file').replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/_+/g, '_');
+    return safe.replace(/^[_\.]+|[_\.]+$/g, '') || 'file';
+  }
+
+  function formatRemainingTime(expiresAt) {
+    var milliseconds = new Date(expiresAt).getTime() - Date.now();
+    if (!isFinite(milliseconds) || milliseconds <= 0) return 'sudah kedaluwarsa';
+    var totalMinutes = Math.max(1, Math.ceil(milliseconds / 60000));
+    var days = Math.floor(totalMinutes / 1440);
+    var hours = Math.floor((totalMinutes % 1440) / 60);
+    var minutes = totalMinutes % 60;
+    if (days) return 'tersisa ' + days + ' hari ' + hours + ' jam';
+    if (hours) return 'tersisa ' + hours + ' jam ' + minutes + ' menit';
+    return 'tersisa ' + minutes + ' menit';
+  }
+
+  function getErrorMessage(error) { return (error && error.message) ? error.message : 'Terjadi kesalahan yang tidak diketahui.'; }
+
+  async function copyTextToClipboard(value) {
+    if (!value) throw new Error('Tautan belum tersedia.');
+    if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(value); return; }
+    var textarea = document.createElement('textarea'); textarea.value = value; textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed'; textarea.style.opacity = '0'; document.body.append(textarea); textarea.select();
+    var copied = document.execCommand('copy'); textarea.remove();
+    if (!copied) throw new Error('Clipboard tidak didukung di browser ini.');
   }
 
   async function clearHistory() {
@@ -1587,6 +1941,13 @@
       copyBtn.textContent = type === 'text/plain' ? 'Salin Teks' : 'copy';
       copyBtn.dataset.copyResult = String(index);
       actionsDiv.append(copyBtn);
+
+      var createLink = document.createElement('button');
+      createLink.className = 'download-one';
+      createLink.type = 'button';
+      createLink.textContent = 'Buat Link & QR';
+      createLink.dataset.createShareLink = String(index);
+      actionsDiv.append(createLink);
 
       if (type.startsWith('image/')) {
         var shareBtn = document.createElement('button');
