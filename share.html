@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Unduh file yang dibagikan melalui AliDev File Studio.">
+  <meta name="theme-color" content="#131228">
+  <title>File dibagikan · AliDev File Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="share-page">
+  <div class="app-background" aria-hidden="true"><span></span><span></span><span></span></div>
+  <main class="public-share-card" id="share-page-content" aria-live="polite">
+    <a class="public-share-brand" href="index.html" aria-label="Buka AliDev File Studio"><span class="studio-mark">AD</span><span>AliDev File Studio</span></a>
+    <p>Memuat tautan file…</p>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var SUPABASE_URL = 'https://vdugagtqchydcjoqegsh.supabase.co';
+      var SUPABASE_ANON_KEY = 'sb_publishable_b67btfPJYVb7Uc2oTonFIg_XQfwr7Hy';
+      var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      var content = document.getElementById('share-page-content');
+      var shortCode = new URLSearchParams(window.location.search).get('code');
+
+      if (!shortCode) {
+        renderUnavailable();
+        return;
+      }
+      loadSharedFile(shortCode);
+
+      async function loadSharedFile(code) {
+        try {
+          var response = await supabaseClient
+            .from('shared_links')
+            .select('short_code, public_url, filename, mime_type, file_size, expires_at')
+            .eq('short_code', code)
+            .maybeSingle();
+
+          if (response.error) {
+            if (response.error.code === 'PGRST116') { renderUnavailable(); return; }
+            throw response.error;
+          }
+          if (!response.data || new Date(response.data.expires_at).getTime() <= Date.now()) {
+            renderUnavailable();
+            return;
+          }
+          renderSharedFile(response.data);
+        } catch (error) {
+          console.error('Gagal memuat tautan berbagi', error);
+          renderError('Tautan belum dapat dimuat. Silakan coba lagi beberapa saat.');
+        }
+      }
+
+      function renderSharedFile(file) {
+        document.title = (file.filename || 'File dibagikan') + ' · AliDev File Studio';
+        content.replaceChildren();
+
+        var brand = document.createElement('a');
+        brand.className = 'public-share-brand'; brand.href = 'index.html'; brand.setAttribute('aria-label', 'Buka AliDev File Studio');
+        var mark = document.createElement('span'); mark.className = 'studio-mark'; mark.textContent = 'AD';
+        var brandName = document.createElement('span'); brandName.textContent = 'AliDev File Studio';
+        brand.append(mark, brandName);
+
+        var eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'FILE DIBAGIKAN';
+        var heading = document.createElement('h1'); heading.textContent = file.filename || 'File dibagikan';
+        var intro = document.createElement('p'); intro.textContent = 'File ini tersedia untuk diunduh sampai masa berlaku tautannya berakhir.';
+
+        var meta = document.createElement('div'); meta.className = 'public-file-meta';
+        meta.append(createMeta('UKURAN FILE', formatBytes(Number(file.file_size || 0))));
+        meta.append(createMeta('FORMAT', friendlyMimeType(file.mime_type)));
+        meta.append(createMeta('MASA AKTIF', formatRemainingTime(file.expires_at)));
+
+        var preview = document.createElement('div'); preview.className = 'public-preview';
+        appendPreview(preview, file);
+
+        var download = document.createElement('a');
+        download.className = 'primary-button public-download';
+        download.href = file.public_url;
+        download.download = file.filename || 'file';
+        download.target = '_blank';
+        download.rel = 'noopener noreferrer';
+        download.innerHTML = '<span>Unduh File</span><b aria-hidden="true">↓</b>';
+
+        content.append(brand, eyebrow, heading, intro, meta, preview, download);
+      }
+
+      function createMeta(label, value) {
+        var box = document.createElement('div');
+        var labelElement = document.createElement('span'); labelElement.textContent = label;
+        var valueElement = document.createElement('strong'); valueElement.textContent = value;
+        box.append(labelElement, valueElement);
+        return box;
+      }
+
+      function appendPreview(container, file) {
+        var mime = String(file.mime_type || '').toLowerCase();
+        if (mime.indexOf('image/') === 0) {
+          var image = document.createElement('img'); image.src = file.public_url; image.alt = 'Pratinjau ' + (file.filename || 'gambar'); container.append(image);
+        } else if (mime === 'application/pdf') {
+          var pdf = document.createElement('iframe'); pdf.src = file.public_url; pdf.title = 'Pratinjau PDF ' + (file.filename || ''); container.append(pdf);
+        } else if (mime.indexOf('audio/') === 0) {
+          var audio = document.createElement('audio'); audio.src = file.public_url; audio.controls = true; audio.preload = 'metadata'; container.append(audio);
+        } else if (mime.indexOf('video/') === 0) {
+          var video = document.createElement('video'); video.src = file.public_url; video.controls = true; video.preload = 'metadata'; container.append(video);
+        } else {
+          var note = document.createElement('p'); note.textContent = 'Pratinjau tidak tersedia untuk jenis file ini. Gunakan tombol Unduh File untuk membukanya.'; container.append(note);
+        }
+      }
+
+      function renderUnavailable() {
+        document.title = 'Tautan tidak tersedia · AliDev File Studio';
+        content.className = 'public-share-card public-share-error';
+        content.replaceChildren();
+        var mark = document.createElement('span'); mark.className = 'studio-mark'; mark.textContent = 'AD';
+        var heading = document.createElement('h1'); heading.textContent = 'Tautan tidak tersedia';
+        var message = document.createElement('p'); message.textContent = 'Tautan tidak ditemukan atau sudah kedaluwarsa';
+        var back = document.createElement('a'); back.className = 'outline-button'; back.href = 'index.html'; back.textContent = 'Buka AliDev File Studio';
+        content.append(mark, heading, message, document.createElement('br'), back);
+      }
+
+      function renderError(message) {
+        content.className = 'public-share-card public-share-error';
+        content.replaceChildren();
+        var mark = document.createElement('span'); mark.className = 'studio-mark'; mark.textContent = 'AD';
+        var heading = document.createElement('h1'); heading.textContent = 'Terjadi kendala';
+        var description = document.createElement('p'); description.textContent = message;
+        content.append(mark, heading, description);
+      }
+
+      function formatBytes(bytes) {
+        if (!bytes) return '0 B';
+        var units = ['B', 'KB', 'MB', 'GB'];
+        var index = Math.floor(Math.log(bytes) / Math.log(1024));
+        return (bytes / Math.pow(1024, index)).toFixed(index ? 1 : 0) + ' ' + units[index];
+      }
+
+      function formatRemainingTime(expiresAt) {
+        var milliseconds = new Date(expiresAt).getTime() - Date.now();
+        if (!isFinite(milliseconds) || milliseconds <= 0) return 'kedaluwarsa';
+        var totalMinutes = Math.max(1, Math.ceil(milliseconds / 60000));
+        var days = Math.floor(totalMinutes / 1440);
+        var hours = Math.floor((totalMinutes % 1440) / 60);
+        var minutes = totalMinutes % 60;
+        if (days) return days + ' hari ' + hours + ' jam';
+        if (hours) return hours + ' jam ' + minutes + ' menit';
+        return minutes + ' menit';
+      }
+
+      function friendlyMimeType(mimeType) {
+        var mime = String(mimeType || '').toLowerCase();
+        if (mime === 'application/pdf') return 'PDF';
+        if (mime.indexOf('image/') === 0) return 'Gambar';
+        if (mime.indexOf('audio/') === 0) return 'Audio';
+        if (mime.indexOf('video/') === 0) return 'Video';
+        if (mime === 'text/plain') return 'Teks';
+        return mimeType || 'File';
+      }
+    }());
+  </script>
+</body>
+</html>
