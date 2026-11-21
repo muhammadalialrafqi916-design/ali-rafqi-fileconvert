@@ -284,6 +284,7 @@
         if (downloadBtn) {
           var index = Number(downloadBtn.dataset.downloadResult);
           var result = state.results[index];
+          if (!result) return;
           downloadBlob(result.blob, result.filename);
           saveToHistory(result);
           return;
@@ -336,6 +337,7 @@
         if (shareBtn) {
           var index = Number(shareBtn.dataset.shareResult);
           var result = state.results[index];
+          if (!result) return;
           try {
             var file = new File([result.blob], result.filename, { type: result.blob.type });
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -363,8 +365,12 @@
 
         var createLinkBtn = event.target.closest('[data-create-share-link]');
         if (createLinkBtn) {
-          var shareIndex = Number(createLinkBtn.dataset.createShareLink);
-          openShareDialogForResult(state.results[shareIndex]);
+          try {
+            var shareIndex = Number(createLinkBtn.dataset.createShareLink);
+            openShareDialogForResult(state.results[shareIndex]);
+          } catch (err) {
+            showToast('Gagal membuka dialog berbagi: ' + getErrorMessage(err), 'error');
+          }
           return;
         }
       });
@@ -901,6 +907,8 @@
     
     if (el['switch-copy']) {
       el['switch-copy'].textContent = isReg ? 'Masuk sekarang.' : 'Buat akun baru';
+    } else if (el['switch-auth-mode']) {
+      el['switch-auth-mode'].textContent = isReg ? 'Masuk sekarang.' : 'Buat akun baru';
     }
 
     var nameFieldContainer = document.querySelector('.auth-name-field') || (el['display-name'] && el['display-name'].parentElement);
@@ -1078,6 +1086,8 @@
   async function logout() {
     await supabaseClient.auth.signOut();
     state.currentUser = null;
+    state.sharedLinks = [];
+    state.pendingShareResult = null;
     clearFiles(); clearResults(); 
     if (el['studio-shell']) el['studio-shell'].hidden = true;
     if (el['auth-screen']) el['auth-screen'].hidden = false;
@@ -1271,6 +1281,14 @@
     if (deleteButton) await deleteSharedLink(deleteButton.dataset.deleteSharedLink);
   }
 
+  function setShareStatus(message, tone) {
+    if (!el['share-link-status']) return;
+    el['share-link-status'].textContent = message || '';
+    el['share-link-status'].classList.remove('is-error', 'is-success');
+    if (tone === 'error') el['share-link-status'].classList.add('is-error');
+    else if (tone === 'success') el['share-link-status'].classList.add('is-success');
+  }
+
   function openShareDialogForResult(result) {
     if (!state.currentUser || !state.currentUser.id) { showToast('Masuk ke akun untuk membuat tautan bagikan.', 'error'); return; }
     if (!result || !result.blob) { showToast('File hasil tidak tersedia untuk dibagikan.', 'error'); return; }
@@ -1287,6 +1305,7 @@
     if (!link || !link.short_code) { showToast('Tautan tidak valid.', 'error'); return; }
     state.pendingShareResult = null;
     if (el['share-create-controls']) el['share-create-controls'].hidden = true;
+    setShareStatus('');
     if (el['history-dialog'] && el['history-dialog'].open) el['history-dialog'].close();
     if (el['share-link-dialog'] && !el['share-link-dialog'].open) el['share-link-dialog'].showModal();
     showShareLinkResult(link);
@@ -1455,7 +1474,7 @@
     }
   }
 
-  function buildShareUrl(shortCode) { return window.location.origin + '/share.html?code=' + encodeURIComponent(shortCode); }
+  function buildShareUrl(shortCode) { return new URL('share.html?code=' + encodeURIComponent(shortCode), window.location.href).href; }
 
   function generateShortCode() {
     var alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -1510,8 +1529,10 @@
 
       if (el['history-list']) {
         el['history-list'].replaceChildren();
-        var li = document.createElement('li'); li.textContent = 'Riwayat sudah bersih.'; li.style.textAlign = 'center';
-        el['history-list'].append(li);
+        var empty = document.createElement('div');
+        empty.className = 'empty-history';
+        empty.textContent = 'Riwayat sudah bersih.';
+        el['history-list'].append(empty);
       }
       updateHistoryBadge();
       showToast('Riwayat berhasil dikosongkan.', 'success');
