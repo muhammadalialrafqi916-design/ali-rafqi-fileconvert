@@ -1,18 +1,19 @@
 <!doctype html>
 <html lang="id">
 <head>
+  <link rel="icon" type="image/svg+xml" href="app-icon.svg">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Unduh file yang dibagikan melalui AliDev File Studio.">
   <meta name="theme-color" content="#131228">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>File dibagikan · AliDev File Studio</title>
-  <link rel="icon" type="image/svg+xml" href="app-icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-</head>
+<script src="/_aistudio-iframe.js?v=29045eb3"></script></head>
 <body class="share-page">
   <div class="app-background" aria-hidden="true"><span></span><span></span><span></span></div>
   <main class="public-share-card" id="share-page-content" aria-live="polite">
@@ -24,23 +25,30 @@
     (function () {
       'use strict';
 
-      try {
-        var savedTheme = localStorage.getItem('aliRafqiFileStudio.theme.v1');
-        var shouldUseDark = savedTheme === 'dark' || (!savedTheme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        document.body.classList.toggle('dark-theme', shouldUseDark);
-      } catch (e) {}
-
       var SUPABASE_URL = 'https://vdugagtqchydcjoqegsh.supabase.co';
       var SUPABASE_ANON_KEY = 'sb_publishable_b67btfPJYVb7Uc2oTonFIg_XQfwr7Hy';
+      var ALLOWED_STORAGE_PREFIX = SUPABASE_URL + '/storage/v1/object/public/shared-files/';
       var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       var content = document.getElementById('share-page-content');
       var shortCode = new URLSearchParams(window.location.search).get('code');
 
-      if (!shortCode) {
+      if (!shortCode || !/^[A-Za-z0-9_-]{4,32}$/.test(shortCode)) {
         renderUnavailable();
         return;
       }
       loadSharedFile(shortCode);
+
+      function isSafeStorageUrl(rawUrl) {
+        if (typeof rawUrl !== 'string' || !rawUrl) return false;
+        try {
+          var parsed = new URL(rawUrl);
+          if (parsed.protocol !== 'https:') return false;
+          var normalized = parsed.origin + parsed.pathname;
+          return normalized.indexOf(ALLOWED_STORAGE_PREFIX) === 0;
+        } catch (e) {
+          return false;
+        }
+      }
 
       async function loadSharedFile(code) {
         try {
@@ -54,8 +62,12 @@
             if (response.error.code === 'PGRST116') { renderUnavailable(); return; }
             throw response.error;
           }
-          if (!response.data || !isSafeHttpUrl(response.data.public_url) || new Date(response.data.expires_at).getTime() <= Date.now()) {
+          if (!response.data || new Date(response.data.expires_at).getTime() <= Date.now()) {
             renderUnavailable();
+            return;
+          }
+          if (!isSafeStorageUrl(response.data.public_url)) {
+            renderError('Tautan file tidak lolos validasi keamanan URL.');
             return;
           }
           renderSharedFile(response.data);
@@ -66,6 +78,12 @@
       }
 
       function renderSharedFile(file) {
+        var safeUrl = isSafeStorageUrl(file.public_url) ? file.public_url : '';
+        if (!safeUrl) {
+          renderError('Tautan file tidak valid.');
+          return;
+        }
+
         document.title = (file.filename || 'File dibagikan') + ' · AliDev File Studio';
         content.replaceChildren();
 
@@ -85,14 +103,17 @@
         meta.append(createMeta('MASA AKTIF', formatRemainingTime(file.expires_at)));
 
         var preview = document.createElement('div'); preview.className = 'public-preview';
-        appendPreview(preview, file);
+        appendPreview(preview, file, safeUrl);
 
         var download = document.createElement('a');
         download.className = 'primary-button public-download';
-        download.href = buildDownloadUrl(file.public_url, file.filename);
-        download.download = file.filename || 'file';
+        download.href = safeUrl;
+        download.download = String(file.filename || 'file').replace(/[\\/:*?"<>|]+/g, '_');
+        download.target = '_blank';
         download.rel = 'noopener noreferrer';
-        download.innerHTML = '<span>Unduh File</span><b aria-hidden="true">↓</b>';
+        var dlLabel = document.createElement('span'); dlLabel.textContent = 'Unduh File';
+        var dlArrow = document.createElement('b'); dlArrow.setAttribute('aria-hidden', 'true'); dlArrow.textContent = '↓';
+        download.append(dlLabel, dlArrow);
 
         content.append(brand, eyebrow, heading, intro, meta, preview, download);
       }
@@ -105,16 +126,16 @@
         return box;
       }
 
-      function appendPreview(container, file) {
+      function appendPreview(container, file, safeUrl) {
         var mime = String(file.mime_type || '').toLowerCase();
-        if (mime.indexOf('image/') === 0) {
-          var image = document.createElement('img'); image.src = file.public_url; image.alt = 'Pratinjau ' + (file.filename || 'gambar'); container.append(image);
+        if (mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp' || mime === 'image/gif') {
+          var image = document.createElement('img'); image.src = safeUrl; image.alt = 'Pratinjau ' + (file.filename || 'gambar'); container.append(image);
         } else if (mime === 'application/pdf') {
-          var pdf = document.createElement('iframe'); pdf.src = file.public_url; pdf.title = 'Pratinjau PDF ' + (file.filename || ''); container.append(pdf);
+          var pdf = document.createElement('iframe'); pdf.src = safeUrl; pdf.setAttribute('sandbox', 'allow-same-origin'); pdf.title = 'Pratinjau PDF ' + (file.filename || ''); container.append(pdf);
         } else if (mime.indexOf('audio/') === 0) {
-          var audio = document.createElement('audio'); audio.src = file.public_url; audio.controls = true; audio.preload = 'metadata'; container.append(audio);
+          var audio = document.createElement('audio'); audio.src = safeUrl; audio.controls = true; audio.preload = 'metadata'; container.append(audio);
         } else if (mime.indexOf('video/') === 0) {
-          var video = document.createElement('video'); video.src = file.public_url; video.controls = true; video.preload = 'metadata'; container.append(video);
+          var video = document.createElement('video'); video.src = safeUrl; video.controls = true; video.preload = 'metadata'; container.append(video);
         } else {
           var note = document.createElement('p'); note.textContent = 'Pratinjau tidak tersedia untuk jenis file ini. Gunakan tombol Unduh File untuk membukanya.'; container.append(note);
         }
@@ -137,22 +158,8 @@
         var mark = document.createElement('span'); mark.className = 'studio-mark'; mark.textContent = 'AD';
         var heading = document.createElement('h1'); heading.textContent = 'Terjadi kendala';
         var description = document.createElement('p'); description.textContent = message;
-        content.append(mark, heading, description);
-      }
-
-      function isSafeHttpUrl(url) {
-        return /^https?:\/\//i.test(String(url || ''));
-      }
-
-      function buildDownloadUrl(publicUrl, filename) {
-        if (!isSafeHttpUrl(publicUrl)) return '#';
-        try {
-          var parsedUrl = new URL(publicUrl);
-          parsedUrl.searchParams.set('download', filename || 'file');
-          return parsedUrl.href;
-        } catch (e) {
-          return publicUrl;
-        }
+        var back = document.createElement('a'); back.className = 'outline-button'; back.href = 'index.html'; back.textContent = 'Buka AliDev File Studio';
+        content.append(mark, heading, description, document.createElement('br'), back);
       }
 
       function formatBytes(bytes) {
