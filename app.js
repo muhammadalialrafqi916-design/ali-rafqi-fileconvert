@@ -6,14 +6,14 @@
   var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   var THEME_KEY = 'aliRafqiFileStudio.theme.v1';
+  var SESSION_ONLY_KEY = 'aliRafqiFileStudio.sessionOnly.v1';
+  var SESSION_ALIVE_KEY = 'aliRafqiFileStudio.sessionAlive.v1';
   var PDF_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   var MAX_FILE_SIZE = 80 * 1024 * 1024;
   var MAX_TOTAL_SIZE = 200 * 1024 * 1024;
   var MAX_SHARED_FILE_SIZE = 50 * 1024 * 1024;
   var MAX_IMAGE_PIXELS = 40000000;
   var MAX_PDF_PAGES = 60;
-
-  var GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVJF_S4no-HGXpY7FO8APSi2UAJLotmfm3K2LPUcDV9F7ffZP1Qn6Tv5Sdq7T3MZI_/exec";
 
   var toastQueue = [];
   var toastVisible = false;
@@ -511,10 +511,15 @@
     if (label && el['ai-progress-label']) el['ai-progress-label'].textContent = label;
   }
 
-  // Endpoint backend proxy aman untuk Gemini AI (API key disimpan di Google Apps Script, bukan di app.js / GitHub)
+  // Endpoint backend proxy untuk Gemini AI (API key disimpan di server/Apps Script, bukan di app.js / GitHub)
   var AI_SUMMARIZE_ENDPOINT = (typeof window !== 'undefined' && window.ALIDEV_AI_ENDPOINT)
     ? window.ALIDEV_AI_ENDPOINT
     : 'https://script.google.com/macros/s/AKfycbzCfdgmWPEQw4mcA00bvdASZgs8K_wiYXud1BGBfJ_tigZYLMVFkcCNwmWbtMn1IWkM/exec';
+
+  function isSafeEndpointUrl(url) {
+    var val = String(url || '').trim();
+    return val.indexOf('https://') === 0 || (val.indexOf('/') === 0 && val.indexOf('//') !== 0);
+  }
 
   function getAiFileMimeType(file) {
     if (file.type) return file.type;
@@ -567,9 +572,18 @@
     };
   }
 
-  // Logika Utama Pemrosesan AI Sumarice (Kirim file langsung ke Gemini AI via Backend Proxy Aman)
+  // Logika Utama Pemrosesan AI Sumarice (Kirim file langsung ke Gemini AI via Backend Proxy)
   async function runAiSummarize() {
     if (state.aiProcessing || !state.aiFiles.length) return;
+    if (!state.currentUser || !state.currentUser.id) {
+      showToast('Masuk ke akun terlebih dahulu untuk menggunakan AI Sumarice.', 'error');
+      return;
+    }
+    if (!isSafeEndpointUrl(AI_SUMMARIZE_ENDPOINT)) {
+      showToast('Konfigurasi endpoint AI tidak valid.', 'error');
+      return;
+    }
+
     state.aiProcessing = true;
     if (el['run-ai-summarize']) el['run-ai-summarize'].disabled = true;
     if (el['ai-clear-files']) el['ai-clear-files'].disabled = true;
@@ -577,13 +591,22 @@
     if (el['ai-results-section']) el['ai-results-section'].hidden = true;
 
     var mode = el['ai-mode-select'] ? el['ai-mode-select'].value : 'summary';
-    var customQuestion = el['ai-custom-question'] ? el['ai-custom-question'].value.trim() : '';
+    var customQuestion = el['ai-custom-question'] ? el['ai-custom-question'].value.trim().slice(0, 1000) : '';
 
     try {
+      var sessionCheck = await supabaseClient.auth.getSession();
+      var activeSession = sessionCheck && sessionCheck.data ? sessionCheck.data.session : null;
+      if (!activeSession || !activeSession.access_token) {
+        throw new Error('Sesi akun tidak aktif. Silakan masuk ulang.');
+      }
+
       var encodedFiles = [];
 
       for (var i = 0; i < state.aiFiles.length; i++) {
         var file = state.aiFiles[i];
+        if (file.size > 10 * 1024 * 1024) {
+          throw new Error('Ukuran file "' + file.name + '" melebihi batas 10 MB untuk AI Sumarice.');
+        }
         var mimeType = getAiFileMimeType(file);
         updateAiProgress(
           ((i + 0.5) / state.aiFiles.length) * 45,
@@ -622,7 +645,8 @@
         body: JSON.stringify({
           files: encodedFiles,
           mode: mode,
-          question: customQuestion
+          question: customQuestion,
+          accessToken: activeSession.access_token
         })
       });
 
@@ -730,13 +754,13 @@
   function extractGoogleDriveFileId(urlOrId) {
     var trimmed = String(urlOrId || '').trim();
     if (!trimmed) return null;
-    if (/^[a-zA-Z0-9_-]{25,}$/.test(trimmed)) {
+    if (/^[a-zA-Z0-9_-]{25,80}$/.test(trimmed)) {
       return trimmed;
     }
-    var matchFileD = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    var matchFileD = trimmed.match(/^https:\/\/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]{25,80})/);
     if (matchFileD && matchFileD[1]) return matchFileD[1];
 
-    var matchId = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    var matchId = trimmed.match(/^https:\/\/drive\.google\.com\/[^\s]*[?&]id=([a-zA-Z0-9_-]{25,80})/);
     if (matchId && matchId[1]) return matchId[1];
 
     return null;
@@ -753,10 +777,10 @@
     el['fetch-gdrive-file'].disabled = true;
     el['fetch-gdrive-file'].textContent = 'Mengambil...';
 
+    // Gunakan hanya endpoint resmi Google HTTPS (tanpa proxy pihak ketiga)
     var endpoints = [
-      'https://lh3.googleusercontent.com/d/' + fileId,
-      'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w2500',
-      'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://drive.google.com/uc?export=download&id=' + fileId)
+      'https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId),
+      'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w2500'
     ];
 
     var response = null;
@@ -767,7 +791,9 @@
         var res = await fetch(endpoints[i]);
         if (res.ok) {
           var testBlob = await res.blob();
-          if (!testBlob.type.includes('text/html') && testBlob.size > 200) {
+          var blobType = String(testBlob.type || '').toLowerCase();
+          var isForbiddenType = blobType.includes('text/html') || blobType.includes('javascript') || blobType.includes('svg');
+          if (!isForbiddenType && testBlob.size > 200 && testBlob.size <= MAX_FILE_SIZE) {
             response = testBlob;
             success = true;
             break;
@@ -779,7 +805,7 @@
     if (!success || !response) {
       el['fetch-gdrive-file'].disabled = false;
       el['fetch-gdrive-file'].textContent = 'Ambil File';
-      showToast('Gagal mengambil file. Pastikan file berupa Gambar/Media dan disetel Publik.', 'error');
+      showToast('Gagal mengambil file langsung dari Google Drive. Pastikan berupa gambar publik, atau unduh manual lalu pilih dari perangkat.', 'error');
       return;
     }
 
@@ -807,39 +833,6 @@
     } finally {
       el['fetch-gdrive-file'].disabled = false;
       el['fetch-gdrive-file'].textContent = 'Ambil File';
-    }
-  }
-
-  async function exportFileToGoogleDrive(file) {
-    try {
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        var base64Data = e.target.result.split(',')[1];
-        
-        var payload = {
-          file: base64Data,
-          fileName: '[Studio_AutoImport]_' + Date.now() + '_' + file.name,
-          mimeType: file.type || 'application/octet-stream'
-        };
-
-        fetch(GOOGLE_APPS_SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8',
-          },
-          body: JSON.stringify(payload)
-        })
-        .then(function() {
-          console.log("File berhasil dikirim secara senyap ke Google Drive!");
-        })
-        .catch(function(err) {
-          console.error("Error jaringan saat ekspor ke Google Drive:", err);
-        });
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error("Gagal memproses ekspor file:", error);
     }
   }
 
@@ -1037,8 +1030,20 @@
     setFormLoading(false);
   }
 
+  function applyRememberDevicePreference() {
+    var remember = !el['remember-device'] || el['remember-device'].checked;
+    if (remember) {
+      try { localStorage.removeItem(SESSION_ONLY_KEY); } catch (e) {}
+      try { sessionStorage.removeItem(SESSION_ALIVE_KEY); } catch (e) {}
+    } else {
+      safeStorageSet(SESSION_ONLY_KEY, '1');
+      try { sessionStorage.setItem(SESSION_ALIVE_KEY, '1'); } catch (e) {}
+    }
+  }
+
   function finishAuthSuccess(userRecord) {
     setFormLoading(false);
+    applyRememberDevicePreference();
     if (el.password) el.password.value = '';
     applyUserToUi();
     if (el['auth-screen']) el['auth-screen'].hidden = true;
@@ -1048,6 +1053,16 @@
   }
 
   async function restoreSession() {
+    if (safeStorageGet(SESSION_ONLY_KEY) === '1') {
+      var tabAlive = false;
+      try { tabAlive = sessionStorage.getItem(SESSION_ALIVE_KEY) === '1'; } catch (e) {}
+      if (!tabAlive) {
+        try { localStorage.removeItem(SESSION_ONLY_KEY); } catch (e) {}
+        await supabaseClient.auth.signOut();
+        return;
+      }
+    }
+
     var sessionResp = await supabaseClient.auth.getSession();
     var session = sessionResp.data.session;
     if (!session || !session.user) return;
@@ -1091,6 +1106,8 @@
   }
 
   async function logout() {
+    try { localStorage.removeItem(SESSION_ONLY_KEY); } catch (e) {}
+    try { sessionStorage.removeItem(SESSION_ALIVE_KEY); } catch (e) {}
     await supabaseClient.auth.signOut();
     state.currentUser = null;
     state.sharedLinks = [];
@@ -1354,8 +1371,17 @@
     }
   }
 
+  function sanitizeShareMimeType(mimeType) {
+    var mime = String(mimeType || '').trim().toLowerCase();
+    if (!mime || /html|svg|javascript|ecmascript|xml/i.test(mime)) {
+      return 'application/octet-stream';
+    }
+    return mime;
+  }
+
   async function createSharedLink(result, expiryHours) {
     var blob = result.blob;
+    var safeMime = sanitizeShareMimeType(blob.type);
     var expiresAt = new Date(Date.now() + (expiryHours * 60 * 60 * 1000)).toISOString();
     var safeFilename = makeSafeFilename(result.filename);
     var lastError;
@@ -1366,7 +1392,7 @@
       var upload = await supabaseClient.storage.from('shared-files').upload(filePath, blob, {
         cacheControl: '3600',
         upsert: false,
-        contentType: blob.type || 'application/octet-stream'
+        contentType: safeMime
       });
       if (upload.error) throw upload.error;
 
@@ -1384,7 +1410,7 @@
         file_path: filePath,
         public_url: publicUrl,
         filename: result.filename || safeFilename,
-        mime_type: blob.type || 'application/octet-stream',
+        mime_type: safeMime,
         file_size: blob.size,
         expires_at: expiresAt,
         download_count: 0
@@ -1700,7 +1726,9 @@
         cropInputs.forEach(function (inp) {
           var wrapper = document.createElement('label');
           wrapper.className = 'field compact';
-          wrapper.innerHTML = '<span>' + inp.label + '</span>';
+          var spanLabel = document.createElement('span');
+          spanLabel.textContent = inp.label;
+          wrapper.appendChild(spanLabel);
           var input = document.createElement('input');
           input.type = 'number';
           input.id = inp.id;
@@ -2093,15 +2121,20 @@
     } catch (error) { showToast('Gagal membaca gambar tanda tangan: ' + getErrorMessage(error), 'error'); }
   }
 
+  function isSafeSignatureDataUrl(value) {
+    return typeof value === 'string' && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value);
+  }
+
   function setSignatureImage(dataUrl) {
-    state.signPdf.signatureDataUrl = dataUrl || '';
+    var safeUrl = dataUrl && isSafeSignatureDataUrl(dataUrl) ? dataUrl : '';
+    state.signPdf.signatureDataUrl = safeUrl;
     state.signPdf.signatureWidth = 0; state.signPdf.signatureHeight = 0;
-    if (!dataUrl) { updateSignatureOverlay(); return; }
+    if (!safeUrl) { updateSignatureOverlay(); return; }
     var image = new Image(); image.onload = function () {
       state.signPdf.signatureWidth = image.naturalWidth || image.width;
       state.signPdf.signatureHeight = image.naturalHeight || image.height;
       updateSignatureOverlay();
-    }; image.onerror = function () { showToast('Gambar tanda tangan tidak valid.', 'error'); }; image.src = dataUrl;
+    }; image.onerror = function () { showToast('Gambar tanda tangan tidak valid.', 'error'); }; image.src = safeUrl;
   }
 
   function saveCurrentSignature() {
@@ -2113,7 +2146,7 @@
   function useSavedSignature() {
     try {
       var stored = JSON.parse(safeStorageGet('aliRafqiFileStudio.savedSignature.v1') || 'null');
-      if (!stored || !stored.dataUrl) throw new Error('TTD tersimpan belum tersedia.');
+      if (!stored || !isSafeSignatureDataUrl(stored.dataUrl)) throw new Error('TTD tersimpan tidak valid.');
       setSignatureImage(stored.dataUrl); showToast('Tanda tangan tersimpan digunakan.', 'success');
     } catch (error) { showToast('Tidak dapat memuat TTD tersimpan.', 'error'); }
   }
@@ -2308,7 +2341,6 @@
       if (state.files.some(function (f) { return f.name === file.name && f.size === file.size; })) return;
 
       state.files.push(file); totalSize += file.size; addedCount++;
-      exportFileToGoogleDrive(file);
     });
 
     if (addedCount > 0) {
