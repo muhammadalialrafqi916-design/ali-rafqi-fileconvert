@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <link rel="icon" type="image/svg+xml" href="app-logo.svg">
+  <link rel="icon" type="image/svg+xml" href="app-icon.svg">
 
   <meta name="google-site-verification" content="_GHf7nigA1DZ1RDUrq5lyfsn3fLKffuC_U4KXEBKxsE" />
   <meta charset="UTF-8">
@@ -294,7 +294,7 @@
               <div><p class="eyebrow">HASIL AI SUMARICE</p><h2 id="ai-results-heading">Ringkasan & Jawaban Selesai.</h2></div>
               <button class="outline-button" id="copy-ai-output" type="button">Salin Hasil</button>
             </div>
-            <div id="ai-output-box" style="background: var(--surface-hover); padding: 18px; border-radius: 12px; border: 1px solid var(--border-color); white-space: pre-wrap; font-size: 0.95rem; line-height: 1.6; max-height: 450px; overflow-y: auto;"></div>
+            <div id="ai-output-box" style="background: var(--paper-alt); padding: 18px; border-radius: 12px; border: 1px solid var(--line); white-space: pre-wrap; font-size: 0.95rem; line-height: 1.6; max-height: 450px; overflow-y: auto;"></div>
           </section>
         </div>
 
@@ -354,8 +354,8 @@
     <div class="modal-head"><div><p class="eyebrow">Impor media</p><h2 id="gdrive-heading">Import dari Google Drive</h2></div><button class="modal-close" type="button" data-close-dialog="gdrive-dialog" aria-label="Tutup">×</button></div>
     <div class="field" style="margin: 20px 0;">
       <label for="gdrive-link-input">Link File Google Drive (Publik)</label>
-      <input id="gdrive-link-input" type="url" placeholder="https://drive.google.com/file/d/... atau ID file" style="width: 100%; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; background: var(--surface-color); color: var(--text-color);">
-      <small style="color: var(--text-secondary); display: block; margin-top: 6px;">Pastikan file disetel "Siapa saja yang memiliki link dapat melihat".</small>
+      <input id="gdrive-link-input" type="url" placeholder="https://drive.google.com/file/d/... atau ID file" style="width: 100%; padding: 12px; border: 2px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink);">
+      <small style="color: var(--muted); display: block; margin-top: 6px;">Pastikan file disetel "Siapa saja yang memiliki link dapat melihat".</small>
     </div>
     <div class="modal-actions"><button class="primary-button" id="fetch-gdrive-file" type="button">Ambil File</button><button class="outline-button" type="button" data-close-dialog="gdrive-dialog">Batal</button></div>
   </dialog>
