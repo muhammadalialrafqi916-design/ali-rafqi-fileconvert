@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'alidev-file-studio-v7';
+const CACHE_NAME = 'alidev-file-studio-v8';
 const SHELL_ASSETS = [
   './',
   './index.html',
