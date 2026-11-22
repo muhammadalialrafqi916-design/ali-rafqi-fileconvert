@@ -383,3 +383,19 @@ body.dark-theme { --ink: #f1eff8; --ink-soft: #d3cedf; --muted: #aaa5bb; --paper
 .sign-preview-controls { margin: .85rem 0; }.sign-pdf-stage { position: relative; display: grid; min-height: 220px; overflow: hidden; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: #d9d5e2; line-height: 0; }.sign-pdf-stage.has-pdf, .sign-pdf-stage:has(#sign-pdf-canvas:not([hidden])) { min-height: 0; }.sign-pdf-stage > canvas { display: block; width: 100%; height: auto; background: #fff; }.sign-preview-empty { margin: 0; padding: 1rem; color: #625d70; font-size: .7rem; line-height: 1.5; text-align: center; }.sign-overlay { position: absolute; z-index: 2; display: grid; min-width: 48px; border: 1px dashed var(--purple); cursor: grab; touch-action: none; line-height: normal; user-select: none; }.sign-overlay:active { cursor: grabbing; }.sign-overlay img { display: block; width: 100%; height: auto; pointer-events: none; }.sign-overlay-date { padding: 1px 2px 0; color: #111827; font: 600 clamp(5px, .75vw, 10px)/1.2 "Manrope", sans-serif; white-space: nowrap; pointer-events: none; }.sign-resize-handle { position: absolute; right: -7px; bottom: -7px; width: 14px; height: 14px; padding: 0; border: 2px solid #fff; border-radius: 50%; background: var(--purple); cursor: nwse-resize; touch-action: none; }.sign-preview-section > .sign-hint { margin-bottom: 0; }
 .dark-theme .sign-builder, .dark-theme .sign-preview-section { background: #292540; }.dark-theme .sign-tab.is-active { background: #26223e; }.dark-theme .sign-draw-canvas { border-color: #68617f; background: #fff; }.dark-theme .sign-local-badge { border-color: #376348; color: #b7f4c3; background: #1b3a28; }.dark-theme .sign-pdf-stage { border-color: #4a4560; background: #171528; }
 @media (max-width: 620px) { .sign-builder-head, .sign-preview-head { align-items: flex-start; flex-direction: column; }.sign-page-nav { width: 100%; justify-content: space-between; }.sign-save-row { align-items: flex-start; flex-direction: column; }.sign-pdf-stage { min-height: 170px; }.sign-pdf-stage.has-pdf, .sign-pdf-stage:has(#sign-pdf-canvas:not([hidden])) { min-height: 0; }.sign-draw-controls { align-items: flex-end; }.sign-draw-canvas { height: 155px; } }
+/* Modal single close button per device (Desktop: bottom Tutup/Batal; Mobile: top-right X) */
+#history-dialog .modal-close,
+#gdrive-dialog .modal-close,
+#share-link-dialog .modal-close { display: none; }
+
+@media (max-width: 620px) {
+  .modal-close { width: 36px; height: 36px; display: inline-grid; place-items: center; flex: none; }
+  #history-dialog .modal-close,
+  #gdrive-dialog .modal-close,
+  #share-link-dialog .modal-close { display: inline-grid; }
+  #history-dialog .modal-actions [data-close-dialog],
+  #gdrive-dialog .modal-actions [data-close-dialog],
+  #share-link-dialog .modal-actions { display: none; }
+  #history-dialog .modal-actions { justify-content: flex-start; }
+  #gdrive-dialog .modal-actions .primary-button { width: 100%; }
+}
