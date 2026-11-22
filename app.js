@@ -2396,15 +2396,15 @@
         previewBox.append(fallback);
       }
 
-      var infoBar = document.createElement('div'); infoBar.style.cssText = 'display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; width: 100%;';
-      var copy = document.createElement('div'); copy.style.cssText = 'min-width: 0; flex: 1 1 200px;';
-      var name = document.createElement('strong'); name.textContent = result.filename; name.style.cssText = 'display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
-      var detail = document.createElement('div'); detail.style.cssText = 'font-size: 0.8em; color: var(--muted);';
+      var infoBar = document.createElement('div'); infoBar.style.cssText = 'display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; width: 100%; min-width: 0; max-width: 100%;';
+      var copy = document.createElement('div'); copy.style.cssText = 'min-width: 0; max-width: 100%; flex: 1 1 200px; overflow: hidden;';
+      var name = document.createElement('strong'); name.textContent = result.filename; name.style.cssText = 'display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+      var detail = document.createElement('div'); detail.style.cssText = 'font-size: 0.8em; color: var(--muted); overflow-wrap: anywhere; word-break: break-word;';
       detail.textContent = formatBytes(result.blob.size) + ' · dari ' + result.sourceName + (result.note ? ' · ' + result.note : '');
       copy.append(name, detail);
 
       var actionsDiv = document.createElement('div');
-      actionsDiv.style.cssText = 'display: flex; flex-wrap: wrap; gap: 6px; align-items: center;';
+      actionsDiv.style.cssText = 'display: flex; flex-wrap: wrap; gap: 6px; align-items: center; max-width: 100%;';
 
       var download = document.createElement('button'); download.className = 'download-one'; download.type = 'button'; download.dataset.downloadResult = String(index);
       download.innerHTML = 'Unduh';
