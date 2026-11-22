@@ -1555,7 +1555,9 @@
     var tool = tools[toolName];
 
     document.querySelectorAll('.tool-card').forEach(function (btn) {
-      btn.setAttribute('aria-pressed', btn.dataset.tool === toolName ? 'true' : 'false');
+      var isSelected = btn.dataset.tool === toolName;
+      btn.classList.toggle('is-selected', isSelected);
+      btn.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
     });
 
     if (el['active-tool-marker']) el['active-tool-marker'].textContent = tool.marker; 
@@ -1951,6 +1953,8 @@
     updateSignPageControls();
   }
 
+  var signResizeBound = false;
+
   function activateSignTab(tabName) {
     document.querySelectorAll('[data-sign-tab]').forEach(function (tab) {
       var active = tab.dataset.signTab === tabName;
@@ -1986,6 +1990,14 @@
       syncDrawnSignature();
     }
     canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+    if (!signResizeBound) {
+      signResizeBound = true;
+      window.addEventListener('resize', function () {
+        if (state.selectedTool !== 'sign-pdf') return;
+        redrawSignatureCanvas();
+        updateSignatureOverlay();
+      });
+    }
     setTimeout(redrawSignatureCanvas, 0);
   }
 
@@ -2007,22 +2019,61 @@
     });
   }
 
+  function trimTransparentCanvas(sourceCanvas, padding) {
+    var w = sourceCanvas.width; var h = sourceCanvas.height;
+    if (!w || !h) return null;
+    var ctx = sourceCanvas.getContext('2d');
+    var data = ctx.getImageData(0, 0, w, h).data;
+    var minX = w, minY = h, maxX = -1, maxY = -1;
+    for (var y = 0; y < h; y += 1) {
+      for (var x = 0; x < w; x += 1) {
+        if (data[(y * w + x) * 4 + 3] > 8) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < minX || maxY < minY) return null;
+    var pad = Math.max(0, padding || 10);
+    var sx = Math.max(0, minX - pad);
+    var sy = Math.max(0, minY - pad);
+    var sw = Math.min(w - sx, (maxX - minX + 1) + pad * 2);
+    var sh = Math.min(h - sy, (maxY - minY + 1) + pad * 2);
+    var out = document.createElement('canvas');
+    out.width = Math.max(1, sw); out.height = Math.max(1, sh);
+    out.getContext('2d').drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    return out;
+  }
+
   function syncDrawnSignature() {
+    redrawSignatureCanvas();
     var canvas = document.getElementById('sign-draw-canvas');
     if (!canvas || !state.signPdf.strokes.length) { setSignatureImage(''); return; }
-    setSignatureImage(canvas.toDataURL('image/png'));
+    var trimmed = trimTransparentCanvas(canvas, 12);
+    setSignatureImage((trimmed || canvas).toDataURL('image/png'));
   }
 
   function renderTypedSignature() {
     var name = document.getElementById('sign-type-name');
-    if (!name || !name.value.trim()) return;
+    if (!name || !name.value.trim()) { setSignatureImage(''); return; }
     var font = document.getElementById('sign-type-font');
     var canvas = document.createElement('canvas'); canvas.width = 1400; canvas.height = 420;
-    var ctx = canvas.getContext('2d'); var fontMap = { cursive: 'cursive', serif: 'Georgia, serif', monospace: 'monospace', fantasy: 'fantasy' };
-    ctx.fillStyle = state.signPdf.typeInkColor || '#111827'; ctx.font = 'italic 180px ' + (fontMap[font ? font.value : 'cursive'] || 'cursive'); ctx.textBaseline = 'middle';
+    var ctx = canvas.getContext('2d');
+    var fontMap = {
+      cursive: '"Brush Script MT", "Segoe Script", cursive',
+      serif: 'Georgia, "Times New Roman", serif',
+      monospace: '"Courier New", monospace',
+      fantasy: '"Palatino Linotype", "Book Antiqua", Georgia, serif'
+    };
+    ctx.fillStyle = state.signPdf.typeInkColor || '#111827';
+    ctx.font = 'italic 180px ' + (fontMap[font ? font.value : 'cursive'] || 'cursive');
+    ctx.textBaseline = 'middle';
     var text = name.value.trim(); var metrics = ctx.measureText(text); var scale = Math.min(1, 1280 / Math.max(1, metrics.width));
     ctx.save(); ctx.translate(60, 210); ctx.scale(scale, scale); ctx.fillText(text, 0, 0); ctx.restore();
-    setSignatureImage(canvas.toDataURL('image/png'));
+    var trimmed = trimTransparentCanvas(canvas, 14);
+    setSignatureImage((trimmed || canvas).toDataURL('image/png'));
   }
 
   async function processUploadedSignature(file) {
@@ -2072,6 +2123,20 @@
     catch (error) { showToast('Gagal menghapus TTD tersimpan.', 'error'); }
   }
 
+  function getSignSurfaceRect() {
+    var stage = document.getElementById('sign-pdf-stage');
+    var canvas = document.getElementById('sign-pdf-canvas');
+    var target = (canvas && !canvas.hidden && canvas.getBoundingClientRect().height > 1) ? canvas : stage;
+    if (!target) return { left: 0, top: 0, width: 1, height: 1 };
+    var rect = target.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: Math.max(1, rect.width),
+      height: Math.max(1, rect.height)
+    };
+  }
+
   function setupSignOverlayInteractions() {
     var stage = document.getElementById('sign-pdf-stage'); var overlay = document.getElementById('sign-pdf-overlay');
     if (!stage || !overlay) return;
@@ -2084,7 +2149,7 @@
       var resizing = Boolean(event.target.closest('.sign-resize-handle')); var startX = event.clientX; var startY = event.clientY;
       var initialX = state.signPdf.xRatio; var initialY = state.signPdf.yRatio; var initialW = state.signPdf.wRatio;
       function move(moveEvent) {
-        var rect = stage.getBoundingClientRect();
+        var rect = getSignSurfaceRect();
         if (resizing) state.signPdf.wRatio = Math.max(.10, Math.min(.70, initialW + ((moveEvent.clientX - startX) / rect.width)));
         else { state.signPdf.xRatio = initialX + ((moveEvent.clientX - startX) / rect.width); state.signPdf.yRatio = initialY + ((moveEvent.clientY - startY) / rect.height); }
         syncSignSizeControl(); updateSignatureOverlay();
@@ -2095,8 +2160,7 @@
   }
 
   function moveSignatureToPoint(clientX, clientY) {
-    var stage = document.getElementById('sign-pdf-stage'); if (!stage) return;
-    var rect = stage.getBoundingClientRect();
+    var rect = getSignSurfaceRect();
     state.signPdf.xRatio = ((clientX - rect.left) / rect.width) - (state.signPdf.wRatio / 2);
     state.signPdf.yRatio = ((clientY - rect.top) / rect.height) - (state.signPdf.hRatio / 2);
     updateSignatureOverlay();
@@ -2107,9 +2171,9 @@
     if (!stage || !overlay || !image) return;
     var sign = state.signPdf;
     if (!sign.signatureDataUrl || !sign.pdfDocument) { overlay.hidden = true; return; }
-    var rect = stage.getBoundingClientRect();
+    var rect = getSignSurfaceRect();
     var aspect = sign.signatureWidth && sign.signatureHeight ? sign.signatureWidth / sign.signatureHeight : 3.5;
-    sign.hRatio = Math.max(.035, sign.wRatio * rect.width / (aspect * Math.max(1, rect.height)));
+    sign.hRatio = Math.max(.035, Math.min(.9, sign.wRatio * rect.width / (aspect * rect.height)));
     sign.xRatio = Math.max(0, Math.min(1 - sign.wRatio, sign.xRatio)); sign.yRatio = Math.max(0, Math.min(1 - sign.hRatio, sign.yRatio));
     image.src = sign.signatureDataUrl; overlay.hidden = false; overlay.style.left = (sign.xRatio * 100) + '%'; overlay.style.top = (sign.yRatio * 100) + '%'; overlay.style.width = (sign.wRatio * 100) + '%'; overlay.style.opacity = sign.opacity;
     if (date) { date.hidden = !sign.includeDate; date.textContent = sign.includeDate ? indonesianDate() : ''; }
@@ -2121,8 +2185,12 @@
   }
 
   function clearSignPdfPreview() {
-    var sign = state.signPdf; sign.renderToken += 1; sign.pdfDocument = null; sign.pdfFile = null; sign.pageNumber = 1; sign.pageCount = 0;
+    var sign = state.signPdf; sign.renderToken += 1;
+    if (sign.pdfDocument && sign.pdfDocument.destroy) { try { sign.pdfDocument.destroy(); } catch (e) {} }
+    sign.pdfDocument = null; sign.pdfFile = null; sign.pageNumber = 1; sign.pageCount = 0;
+    var stage = document.getElementById('sign-pdf-stage');
     var canvas = document.getElementById('sign-pdf-canvas'); var empty = document.getElementById('sign-preview-empty'); var overlay = document.getElementById('sign-pdf-overlay');
+    if (stage) stage.classList.remove('has-pdf');
     if (canvas) { canvas.width = 1; canvas.height = 1; canvas.hidden = true; }
     if (empty) { empty.hidden = false; empty.textContent = 'Pilih satu file PDF untuk memuat pratinjau halaman.'; }
     if (overlay) overlay.hidden = true; updateSignPageControls();
@@ -2136,6 +2204,7 @@
       await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'pdfjsLib'); configurePdfWorker();
       var buffer = await readFileAsArrayBuffer(file); var documentTask = window.pdfjsLib.getDocument({ data: new Uint8Array(buffer) }); var pdf = await documentTask.promise;
       if (token !== sign.renderToken || state.selectedTool !== 'sign-pdf') { if (pdf.destroy) pdf.destroy(); return; }
+      if (sign.pdfDocument && sign.pdfDocument !== pdf && sign.pdfDocument.destroy) { try { sign.pdfDocument.destroy(); } catch (e) {} }
       sign.pdfDocument = pdf; sign.pdfFile = file; sign.pageCount = pdf.numPages; sign.pageNumber = 1; updateSignPageControls(); await renderSignPdfPage();
     } catch (error) {
       if (token !== sign.renderToken) return;
@@ -2145,12 +2214,13 @@
   }
 
   async function renderSignPdfPage() {
-    var sign = state.signPdf; var canvas = document.getElementById('sign-pdf-canvas'); var empty = document.getElementById('sign-preview-empty');
+    var sign = state.signPdf; var stage = document.getElementById('sign-pdf-stage'); var canvas = document.getElementById('sign-pdf-canvas'); var empty = document.getElementById('sign-preview-empty');
     if (!sign.pdfDocument || !canvas) return;
     var token = sign.renderToken;
     try {
       var page = await sign.pdfDocument.getPage(sign.pageNumber); var viewport = page.getViewport({ scale: 1.6 });
       var ctx = canvas.getContext('2d'); canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height); canvas.hidden = false;
+      if (stage) stage.classList.add('has-pdf');
       if (empty) empty.hidden = true;
       await page.render({ canvasContext: ctx, viewport: viewport }).promise;
       if (token !== sign.renderToken) return;
@@ -2172,13 +2242,40 @@
     var dateFont = sign.includeDate ? await pdfDoc.embedFont(window.PDFLib.StandardFonts.Helvetica) : null;
     targetPages.forEach(function (page) {
       if (!page) return;
-      var pageWidth = page.getWidth(); var pageHeight = page.getHeight();
-      var width = sign.wRatio * pageWidth; var height = width * (signature.height / signature.width);
-      var x = sign.xRatio * pageWidth;
-      var y = pageHeight - (sign.yRatio * pageHeight) - height;
-      x = Math.max(0, Math.min(pageWidth - width, x)); y = Math.max(0, Math.min(pageHeight - height, y));
-      page.drawImage(signature, { x: x, y: y, width: width, height: height, opacity: sign.opacity });
-      if (dateFont) page.drawText(indonesianDate(), { x: x, y: Math.max(6, y - 11), size: Math.max(7, Math.min(11, width / 18)), font: dateFont, color: window.PDFLib.rgb(0.07, 0.09, 0.15), opacity: sign.opacity });
+      var pw = page.getWidth(); var ph = page.getHeight();
+      var rot = ((page.getRotation().angle % 360) + 360) % 360;
+      var visW = (rot === 90 || rot === 270) ? ph : pw;
+      var visH = (rot === 90 || rot === 270) ? pw : ph;
+
+      var width = sign.wRatio * visW; var height = width * (signature.height / signature.width);
+      var datePad = dateFont ? 14 : 0;
+      var vx = Math.max(0, Math.min(visW - width, sign.xRatio * visW));
+      var vy = Math.max(datePad, Math.min(visH - height, visH - (sign.yRatio * visH) - height));
+
+      var drawX = vx, drawY = vy;
+      var dateX = vx, dateY = Math.max(4, vy - 11);
+      if (rot === 90) {
+        drawX = pw - vy; drawY = vx;
+        dateX = pw - dateY; dateY = vx;
+      } else if (rot === 180) {
+        drawX = pw - vx; drawY = ph - vy;
+        dateX = pw - vx; dateY = ph - dateY;
+      } else if (rot === 270) {
+        drawX = vy; drawY = ph - vx;
+        dateX = dateY; dateY = ph - vx;
+      }
+
+      page.drawImage(signature, { x: drawX, y: drawY, width: width, height: height, opacity: sign.opacity, rotate: window.PDFLib.degrees(rot) });
+      if (dateFont) {
+        page.drawText(indonesianDate(), {
+          x: dateX, y: dateY,
+          size: Math.max(7, Math.min(11, width / 18)),
+          font: dateFont,
+          color: window.PDFLib.rgb(0.07, 0.09, 0.15),
+          opacity: sign.opacity,
+          rotate: window.PDFLib.degrees(rot)
+        });
+      }
     });
     var pdfBytes = await pdfDoc.save(); var baseName = file.name.replace(/\.pdf$/i, '') || 'dokumen';
     return { blob: new Blob([pdfBytes], { type: 'application/pdf' }), filename: baseName + '_signed.pdf', sourceName: file.name, note: 'Ditandatangani secara lokal' };
@@ -2269,7 +2366,7 @@
       var item = document.createElement('div'); item.className = 'result-item';
 
       var previewBox = document.createElement('div');
-      previewBox.style.cssText = 'background: var(--surface-hover); border-radius: 8px; margin-bottom: 12px; overflow: hidden; display: flex; justify-content: center; align-items: center; border: 1px solid var(--border-color);';
+      previewBox.style.cssText = 'width: 100%; background: var(--paper-alt); border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; border: 1px solid var(--line);';
       var type = result.blob.type;
       
       if (type.startsWith('image/')) {
@@ -2286,7 +2383,7 @@
         previewBox.append(video);
       } else if (type === 'text/plain') {
         var pre = document.createElement('pre');
-        pre.style.cssText = 'width: 100%; max-height: 250px; overflow-y: auto; padding: 15px; font-family: inherit; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; color: var(--text-color); margin: 0; text-align: left;';
+        pre.style.cssText = 'width: 100%; max-height: 250px; overflow-y: auto; padding: 15px; font-family: inherit; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; color: var(--ink); margin: 0; text-align: left;';
         
         fetch(result.previewUrl).then(function(res) { return res.text(); }).then(function(txt) {
           pre.textContent = txt || '(Teks tidak terdeteksi pada gambar)';
@@ -2295,30 +2392,32 @@
         });
         previewBox.append(pre);
       } else {
-        var fallback = document.createElement('div'); fallback.style.padding = '20px'; fallback.style.color = 'var(--text-secondary)'; fallback.textContent = 'Pratinjau tidak tersedia';
+        var fallback = document.createElement('div'); fallback.style.padding = '20px'; fallback.style.color = 'var(--muted)'; fallback.textContent = 'Pratinjau tidak tersedia';
         previewBox.append(fallback);
       }
 
-      var infoBar = document.createElement('div'); infoBar.style.cssText = 'display: flex; justify-content: space-between; align-items: center; gap: 10px;';
-      var copy = document.createElement('div'); copy.style.overflow = 'hidden';
+      var infoBar = document.createElement('div'); infoBar.style.cssText = 'display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; width: 100%;';
+      var copy = document.createElement('div'); copy.style.cssText = 'min-width: 0; flex: 1 1 200px;';
       var name = document.createElement('strong'); name.textContent = result.filename; name.style.cssText = 'display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
-      var detail = document.createElement('div'); detail.style.cssText = 'font-size: 0.85em; color: var(--text-secondary);';
+      var detail = document.createElement('div'); detail.style.cssText = 'font-size: 0.8em; color: var(--muted);';
       detail.textContent = formatBytes(result.blob.size) + ' · dari ' + result.sourceName + (result.note ? ' · ' + result.note : '');
       copy.append(name, detail);
 
       var actionsDiv = document.createElement('div');
-      actionsDiv.style.cssText = 'display: flex; gap: 6px; align-items: center;';
+      actionsDiv.style.cssText = 'display: flex; flex-wrap: wrap; gap: 6px; align-items: center;';
 
       var download = document.createElement('button'); download.className = 'download-one'; download.type = 'button'; download.dataset.downloadResult = String(index);
       download.innerHTML = 'Unduh';
       actionsDiv.append(download);
 
-      var copyBtn = document.createElement('button');
-      copyBtn.className = 'download-one';
-      copyBtn.type = 'button';
-      copyBtn.textContent = type === 'text/plain' ? 'Salin Teks' : 'copy';
-      copyBtn.dataset.copyResult = String(index);
-      actionsDiv.append(copyBtn);
+      if (type.startsWith('image/') || type === 'text/plain') {
+        var copyBtn = document.createElement('button');
+        copyBtn.className = 'download-one';
+        copyBtn.type = 'button';
+        copyBtn.textContent = type === 'text/plain' ? 'Salin Teks' : 'copy';
+        copyBtn.dataset.copyResult = String(index);
+        actionsDiv.append(copyBtn);
+      }
 
       var createLink = document.createElement('button');
       createLink.className = 'download-one';
