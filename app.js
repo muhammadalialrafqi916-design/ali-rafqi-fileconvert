@@ -26,6 +26,7 @@
     results: [],
     sharedLinks: [],
     pendingShareResult: null,
+    signPdf: { pdfDocument: null, pdfFile: null, pageNumber: 1, pageCount: 0, renderToken: 0, strokes: [], signatureDataUrl: '', signatureWidth: 0, signatureHeight: 0, inkColor: '#111827', penWidth: 3, xRatio: 0.60, yRatio: 0.70, wRatio: 0.28, hRatio: 0.12, opacity: 1, includeDate: false },
     processing: false,
     lastFailures: [],
     // State khusus AI Sumarice
@@ -83,6 +84,11 @@
       marker: 'LINDUNGI PDF', title: 'Lindungi PDF dengan Sandi', description: 'Enkripsi dan kunci dokumen PDF dengan kata sandi aman secara lokal di browser.',
       dropTitle: 'Tarik PDF ke sini', requirements: 'atau pilih dari perangkat · PDF · maksimal 5 file',
       accept: 'application/pdf,.pdf', extensions: ['pdf'], maxFiles: 5, runLabel: 'Kunci & Enkripsi PDF'
+    },
+    'sign-pdf': {
+      marker: 'TANDA TANGAN PDF', title: 'Tanda Tangani PDF', description: 'Gambar, ketik, atau unggah tanda tangan lalu tempatkan secara presisi langsung di PDF.',
+      dropTitle: 'Tarik PDF ke sini', requirements: 'atau pilih dari perangkat · PDF · maksimal 1 file',
+      accept: 'application/pdf,.pdf', extensions: ['pdf'], maxFiles: 1, runLabel: 'Simpan PDF Bertanda Tangan'
     },
     'image-to-text': {
       marker: 'SCAN TEKS', title: 'Scan Teks dari Gambar', description: 'Ambil dan ekstrak tulisan dari foto atau tangkapan layar secara lokal di perangkat.',
@@ -246,6 +252,7 @@
         var removeButton = event.target.closest('[data-remove-file]');
         if (!removeButton || state.processing) return;
         state.files.splice(Number(removeButton.dataset.removeFile), 1);
+        if (state.selectedTool === 'sign-pdf') clearSignPdfPreview();
         renderFiles();
         setStatus(state.files.length ? 'File diperbarui. Siap diproses.' : 'Pilih file untuk memulai.');
       });
@@ -1542,6 +1549,8 @@
   function selectTool(toolName, skipClear) {
     if (state.processing) return;
     if (!tools[toolName]) toolName = 'images';
+    var previousTool = state.selectedTool;
+    if (previousTool === 'sign-pdf' && toolName !== 'sign-pdf') clearSignPdfPreview();
     state.selectedTool = toolName;
     var tool = tools[toolName];
 
@@ -1814,6 +1823,8 @@
 
         protectGroup.append(lblPass, lblNote);
         el['conversion-options'].appendChild(protectGroup);
+      } else if (toolName === 'sign-pdf') {
+        createSignPdfOptions();
       } else if (toolName === 'image-to-text') {
         var ocrGroup = document.createElement('div');
         ocrGroup.className = 'option-group';
@@ -1843,7 +1854,346 @@
     }
 
     if (!skipClear) { clearFiles(); clearResults(); setStatus('Menunggu file...'); } 
-    else { validateFilesAgainstTool(); }
+    else { validateFilesAgainstTool(); if (toolName === 'sign-pdf' && state.files.length) loadSignPdfPreview(); }
+  }
+
+  function createSignPdfOptions() {
+    if (!el['conversion-options']) return;
+    var panel = document.createElement('section');
+    panel.className = 'sign-pdf-panel';
+    panel.innerHTML =
+      '<div class="sign-builder">' +
+        '<div class="sign-builder-head"><div><p class="eyebrow">PEMBUAT TANDA TANGAN</p><h3>Tanda tangan Anda</h3></div><span class="sign-local-badge">100% lokal</span></div>' +
+        '<div class="sign-tabs" role="tablist" aria-label="Cara membuat tanda tangan">' +
+          '<button class="sign-tab is-active" type="button" data-sign-tab="draw" role="tab" aria-selected="true">Gambar</button>' +
+          '<button class="sign-tab" type="button" data-sign-tab="type" role="tab" aria-selected="false">Ketik</button>' +
+          '<button class="sign-tab" type="button" data-sign-tab="upload" role="tab" aria-selected="false">Unggah</button>' +
+        '</div>' +
+        '<div class="sign-pane is-active" data-sign-pane="draw">' +
+          '<canvas id="sign-draw-canvas" class="sign-draw-canvas" aria-label="Area gambar tanda tangan"></canvas>' +
+          '<div class="sign-draw-controls"><div class="sign-control-group"><span>Warna tinta</span><div class="sign-color-options"><button type="button" class="sign-color is-active" data-sign-ink="#111827" style="--ink:#111827" aria-label="Hitam"></button><button type="button" class="sign-color" data-sign-ink="#1d4ed8" style="--ink:#1d4ed8" aria-label="Biru"></button><button type="button" class="sign-color" data-sign-ink="#b91c1c" style="--ink:#b91c1c" aria-label="Merah"></button></div></div>' +
+          '<label class="sign-control-group">Ketebalan pena<select id="sign-pen-width"><option value="2">Tipis</option><option value="3" selected>Sedang</option><option value="5">Tebal</option></select></label>' +
+          '<div class="sign-draw-actions"><button class="history-action" type="button" id="sign-undo">Undo</button><button class="history-action is-danger" type="button" id="sign-clear">Hapus</button></div></div>' +
+        '</div>' +
+        '<div class="sign-pane" data-sign-pane="type" hidden>' +
+          '<label class="field compact"><span>Nama / tanda tangan</span><input type="text" id="sign-type-name" maxlength="80" placeholder="Ketik nama Anda"></label>' +
+          '<div class="sign-type-grid"><label class="field compact"><span>Gaya tulisan</span><select id="sign-type-font"><option value="cursive">Klasik</option><option value="serif">Kaligrafi Serif</option><option value="monospace">Tanda tangan modern</option><option value="fantasy">Ekspresif</option></select></label><div class="sign-control-group"><span>Warna tinta</span><div class="sign-color-options"><button type="button" class="sign-color is-active" data-sign-type-ink="#111827" style="--ink:#111827" aria-label="Hitam"></button><button type="button" class="sign-color" data-sign-type-ink="#1d4ed8" style="--ink:#1d4ed8" aria-label="Biru"></button><button type="button" class="sign-color" data-sign-type-ink="#b91c1c" style="--ink:#b91c1c" aria-label="Merah"></button></div></div></div>' +
+          '<p class="sign-hint">Tanda tangan PNG transparan diperbarui otomatis saat Anda mengetik.</p>' +
+        '</div>' +
+        '<div class="sign-pane" data-sign-pane="upload" hidden>' +
+          '<label class="field compact"><span>File tanda tangan PNG / JPG</span><input id="sign-upload-input" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg"></label>' +
+          '<label class="sign-checkbox"><input id="sign-remove-white" type="checkbox" checked> Hapus latar putih otomatis</label>' +
+          '<p class="sign-hint">Piksel terang akan dibuat transparan; gunakan PNG transparan untuk hasil terbaik.</p>' +
+        '</div>' +
+        '<div class="sign-save-row"><label class="sign-checkbox"><input id="sign-include-date" type="checkbox"> Sertakan tanggal di bawah TTD</label><div><button class="history-action" id="sign-save" type="button">Simpan TTD</button><button class="history-action" id="sign-use-saved" type="button">Pakai TTD Tersimpan</button><button class="history-action is-danger" id="sign-delete-saved" type="button">Hapus TTD</button></div></div>' +
+      '</div>' +
+      '<div class="sign-preview-section">' +
+        '<div class="sign-preview-head"><div><p class="eyebrow">PRATINJAU & PENEMPATAN</p><h3>Letakkan tanda tangan</h3></div><div class="sign-page-nav"><button class="history-action" id="sign-prev-page" type="button">← Prev</button><span id="sign-page-label">Pilih PDF</span><button class="history-action" id="sign-next-page" type="button">Next →</button></div></div>' +
+        '<div class="sign-preview-controls"><label class="field compact"><span>Cakupan</span><select id="sign-page-scope"><option value="current">Halaman ini saja</option><option value="all">Semua halaman</option></select></label><label class="field compact"><span>Ukuran TTD <strong id="sign-size-output">28%</strong></span><input id="sign-size-input" type="range" min="10" max="70" value="28"></label><label class="field compact"><span>Opasitas <strong id="sign-opacity-output">100%</strong></span><input id="sign-opacity-input" type="range" min="30" max="100" value="100"></label></div>' +
+        '<div class="sign-pdf-stage" id="sign-pdf-stage"><canvas id="sign-pdf-canvas" hidden></canvas><p class="sign-preview-empty" id="sign-preview-empty">Pilih satu file PDF untuk memuat pratinjau halaman.</p><div class="sign-overlay" id="sign-pdf-overlay" hidden><img id="sign-overlay-image" alt="Pratinjau tanda tangan"><span class="sign-overlay-date" id="sign-overlay-date"></span><button class="sign-resize-handle" type="button" aria-label="Ubah ukuran tanda tangan"></button></div></div>' +
+        '<p class="sign-hint">Geser kotak TTD, gunakan handle pojok kanan-bawah untuk mengubah ukuran, atau klik langsung di halaman PDF untuk memindahkan.</p>' +
+      '</div>';
+    el['conversion-options'].appendChild(panel);
+    initializeSignPdfUi();
+  }
+
+  function initializeSignPdfUi() {
+    var sign = state.signPdf;
+    document.querySelectorAll('[data-sign-tab]').forEach(function (tab) {
+      tab.addEventListener('click', function () { activateSignTab(this.dataset.signTab); });
+    });
+    document.querySelectorAll('[data-sign-ink]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        sign.inkColor = this.dataset.signInk;
+        document.querySelectorAll('[data-sign-ink]').forEach(function (item) { item.classList.toggle('is-active', item === button); });
+        redrawSignatureCanvas();
+      });
+    });
+    document.querySelectorAll('[data-sign-type-ink]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        sign.typeInkColor = this.dataset.signTypeInk;
+        document.querySelectorAll('[data-sign-type-ink]').forEach(function (item) { item.classList.toggle('is-active', item === button); });
+        renderTypedSignature();
+      });
+    });
+    var pen = document.getElementById('sign-pen-width');
+    if (pen) pen.addEventListener('change', function () { sign.penWidth = Number(this.value); });
+    var undo = document.getElementById('sign-undo');
+    if (undo) undo.addEventListener('click', function () { sign.strokes.pop(); syncDrawnSignature(); });
+    var clear = document.getElementById('sign-clear');
+    if (clear) clear.addEventListener('click', function () { sign.strokes = []; setSignatureImage(''); redrawSignatureCanvas(); });
+    var name = document.getElementById('sign-type-name');
+    var font = document.getElementById('sign-type-font');
+    if (name) name.addEventListener('input', renderTypedSignature);
+    if (font) font.addEventListener('change', renderTypedSignature);
+    var upload = document.getElementById('sign-upload-input');
+    if (upload) upload.addEventListener('change', function () { if (this.files && this.files[0]) processUploadedSignature(this.files[0]); });
+    var white = document.getElementById('sign-remove-white');
+    if (white) white.addEventListener('change', function () { if (upload && upload.files && upload.files[0]) processUploadedSignature(upload.files[0]); });
+    var includeDate = document.getElementById('sign-include-date');
+    if (includeDate) includeDate.addEventListener('change', function () { sign.includeDate = this.checked; updateSignatureOverlay(); });
+    var save = document.getElementById('sign-save');
+    if (save) save.addEventListener('click', saveCurrentSignature);
+    var useSaved = document.getElementById('sign-use-saved');
+    if (useSaved) useSaved.addEventListener('click', useSavedSignature);
+    var deleteSaved = document.getElementById('sign-delete-saved');
+    if (deleteSaved) deleteSaved.addEventListener('click', deleteSavedSignature);
+    var size = document.getElementById('sign-size-input');
+    if (size) size.addEventListener('input', function () { sign.wRatio = Number(this.value) / 100; document.getElementById('sign-size-output').textContent = this.value + '%'; updateSignatureOverlay(); });
+    var opacity = document.getElementById('sign-opacity-input');
+    if (opacity) opacity.addEventListener('input', function () { sign.opacity = Number(this.value) / 100; document.getElementById('sign-opacity-output').textContent = this.value + '%'; updateSignatureOverlay(); });
+    var prev = document.getElementById('sign-prev-page');
+    var next = document.getElementById('sign-next-page');
+    if (prev) prev.addEventListener('click', function () { if (sign.pageNumber > 1) { sign.pageNumber -= 1; renderSignPdfPage(); } });
+    if (next) next.addEventListener('click', function () { if (sign.pageNumber < sign.pageCount) { sign.pageNumber += 1; renderSignPdfPage(); } });
+    setupSignatureCanvas();
+    setupSignOverlayInteractions();
+    updateSignPageControls();
+  }
+
+  function activateSignTab(tabName) {
+    document.querySelectorAll('[data-sign-tab]').forEach(function (tab) {
+      var active = tab.dataset.signTab === tabName;
+      tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', String(active));
+    });
+    document.querySelectorAll('[data-sign-pane]').forEach(function (pane) {
+      var active = pane.dataset.signPane === tabName;
+      pane.classList.toggle('is-active', active); pane.hidden = !active;
+    });
+    if (tabName === 'draw') setTimeout(redrawSignatureCanvas, 0);
+  }
+
+  function setupSignatureCanvas() {
+    var canvas = document.getElementById('sign-draw-canvas');
+    if (!canvas) return;
+    var drawing = false;
+    var activeStroke = null;
+    function point(event) {
+      var rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    }
+    canvas.addEventListener('pointerdown', function (event) {
+      event.preventDefault(); drawing = true; canvas.setPointerCapture(event.pointerId);
+      activeStroke = { color: state.signPdf.inkColor, width: state.signPdf.penWidth, points: [point(event)] };
+      state.signPdf.strokes.push(activeStroke); redrawSignatureCanvas();
+    });
+    canvas.addEventListener('pointermove', function (event) {
+      if (!drawing || !activeStroke) return; event.preventDefault(); activeStroke.points.push(point(event)); redrawSignatureCanvas();
+    });
+    function end(event) {
+      if (!drawing) return; drawing = false; activeStroke = null;
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      syncDrawnSignature();
+    }
+    canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+    setTimeout(redrawSignatureCanvas, 0);
+  }
+
+  function redrawSignatureCanvas() {
+    var canvas = document.getElementById('sign-draw-canvas');
+    if (!canvas) return;
+    var rect = canvas.getBoundingClientRect();
+    var width = Math.max(1, Math.round(rect.width)); var height = Math.max(1, Math.round(rect.height));
+    var dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== width * dpr || canvas.height !== height * dpr) { canvas.width = width * dpr; canvas.height = height * dpr; }
+    var ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
+    state.signPdf.strokes.forEach(function (stroke) {
+      if (!stroke.points.length) return;
+      ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.width; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (var i = 1; i < stroke.points.length; i += 1) ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+      if (stroke.points.length === 1) ctx.lineTo(stroke.points[0].x + 0.1, stroke.points[0].y + 0.1);
+      ctx.stroke();
+    });
+  }
+
+  function syncDrawnSignature() {
+    var canvas = document.getElementById('sign-draw-canvas');
+    if (!canvas || !state.signPdf.strokes.length) { setSignatureImage(''); return; }
+    setSignatureImage(canvas.toDataURL('image/png'));
+  }
+
+  function renderTypedSignature() {
+    var name = document.getElementById('sign-type-name');
+    if (!name || !name.value.trim()) return;
+    var font = document.getElementById('sign-type-font');
+    var canvas = document.createElement('canvas'); canvas.width = 1400; canvas.height = 420;
+    var ctx = canvas.getContext('2d'); var fontMap = { cursive: 'cursive', serif: 'Georgia, serif', monospace: 'monospace', fantasy: 'fantasy' };
+    ctx.fillStyle = state.signPdf.typeInkColor || '#111827'; ctx.font = 'italic 180px ' + (fontMap[font ? font.value : 'cursive'] || 'cursive'); ctx.textBaseline = 'middle';
+    var text = name.value.trim(); var metrics = ctx.measureText(text); var scale = Math.min(1, 1280 / Math.max(1, metrics.width));
+    ctx.save(); ctx.translate(60, 210); ctx.scale(scale, scale); ctx.fillText(text, 0, 0); ctx.restore();
+    setSignatureImage(canvas.toDataURL('image/png'));
+  }
+
+  async function processUploadedSignature(file) {
+    try {
+      var image = await loadImageFromUrl(await readFileAsDataUrl(file));
+      var ratio = Math.min(1, 1400 / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+      var width = Math.max(1, Math.round((image.naturalWidth || image.width) * ratio)); var height = Math.max(1, Math.round((image.naturalHeight || image.height) * ratio));
+      var canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+      var ctx = canvas.getContext('2d'); ctx.drawImage(image, 0, 0, width, height);
+      var removeWhite = document.getElementById('sign-remove-white');
+      if (removeWhite && removeWhite.checked) {
+        var pixels = ctx.getImageData(0, 0, width, height); var data = pixels.data;
+        for (var i = 0; i < data.length; i += 4) if (data[i] > 235 && data[i + 1] > 235 && data[i + 2] > 235) data[i + 3] = 0;
+        ctx.putImageData(pixels, 0, 0);
+      }
+      setSignatureImage(canvas.toDataURL('image/png'));
+    } catch (error) { showToast('Gagal membaca gambar tanda tangan: ' + getErrorMessage(error), 'error'); }
+  }
+
+  function setSignatureImage(dataUrl) {
+    state.signPdf.signatureDataUrl = dataUrl || '';
+    state.signPdf.signatureWidth = 0; state.signPdf.signatureHeight = 0;
+    if (!dataUrl) { updateSignatureOverlay(); return; }
+    var image = new Image(); image.onload = function () {
+      state.signPdf.signatureWidth = image.naturalWidth || image.width;
+      state.signPdf.signatureHeight = image.naturalHeight || image.height;
+      updateSignatureOverlay();
+    }; image.onerror = function () { showToast('Gambar tanda tangan tidak valid.', 'error'); }; image.src = dataUrl;
+  }
+
+  function saveCurrentSignature() {
+    if (!state.signPdf.signatureDataUrl) { showToast('Buat tanda tangan terlebih dahulu.', 'error'); return; }
+    safeStorageSet('aliRafqiFileStudio.savedSignature.v1', JSON.stringify({ dataUrl: state.signPdf.signatureDataUrl, width: state.signPdf.signatureWidth, height: state.signPdf.signatureHeight }));
+    showToast('Tanda tangan disimpan di perangkat ini.', 'success');
+  }
+
+  function useSavedSignature() {
+    try {
+      var stored = JSON.parse(safeStorageGet('aliRafqiFileStudio.savedSignature.v1') || 'null');
+      if (!stored || !stored.dataUrl) throw new Error('TTD tersimpan belum tersedia.');
+      setSignatureImage(stored.dataUrl); showToast('Tanda tangan tersimpan digunakan.', 'success');
+    } catch (error) { showToast('Tidak dapat memuat TTD tersimpan.', 'error'); }
+  }
+
+  function deleteSavedSignature() {
+    try { localStorage.removeItem('aliRafqiFileStudio.savedSignature.v1'); showToast('Tanda tangan tersimpan dihapus.', 'success'); }
+    catch (error) { showToast('Gagal menghapus TTD tersimpan.', 'error'); }
+  }
+
+  function setupSignOverlayInteractions() {
+    var stage = document.getElementById('sign-pdf-stage'); var overlay = document.getElementById('sign-pdf-overlay');
+    if (!stage || !overlay) return;
+    stage.addEventListener('pointerdown', function (event) {
+      if (!state.signPdf.signatureDataUrl || event.target.closest('#sign-pdf-overlay')) return;
+      moveSignatureToPoint(event.clientX, event.clientY); event.preventDefault();
+    });
+    overlay.addEventListener('pointerdown', function (event) {
+      if (!state.signPdf.signatureDataUrl) return; event.preventDefault(); event.stopPropagation();
+      var resizing = Boolean(event.target.closest('.sign-resize-handle')); var startX = event.clientX; var startY = event.clientY;
+      var initialX = state.signPdf.xRatio; var initialY = state.signPdf.yRatio; var initialW = state.signPdf.wRatio;
+      function move(moveEvent) {
+        var rect = stage.getBoundingClientRect();
+        if (resizing) state.signPdf.wRatio = Math.max(.10, Math.min(.70, initialW + ((moveEvent.clientX - startX) / rect.width)));
+        else { state.signPdf.xRatio = initialX + ((moveEvent.clientX - startX) / rect.width); state.signPdf.yRatio = initialY + ((moveEvent.clientY - startY) / rect.height); }
+        syncSignSizeControl(); updateSignatureOverlay();
+      }
+      function end() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); }
+      document.addEventListener('pointermove', move); document.addEventListener('pointerup', end);
+    });
+  }
+
+  function moveSignatureToPoint(clientX, clientY) {
+    var stage = document.getElementById('sign-pdf-stage'); if (!stage) return;
+    var rect = stage.getBoundingClientRect();
+    state.signPdf.xRatio = ((clientX - rect.left) / rect.width) - (state.signPdf.wRatio / 2);
+    state.signPdf.yRatio = ((clientY - rect.top) / rect.height) - (state.signPdf.hRatio / 2);
+    updateSignatureOverlay();
+  }
+
+  function updateSignatureOverlay() {
+    var stage = document.getElementById('sign-pdf-stage'); var overlay = document.getElementById('sign-pdf-overlay'); var image = document.getElementById('sign-overlay-image'); var date = document.getElementById('sign-overlay-date');
+    if (!stage || !overlay || !image) return;
+    var sign = state.signPdf;
+    if (!sign.signatureDataUrl || !sign.pdfDocument) { overlay.hidden = true; return; }
+    var rect = stage.getBoundingClientRect();
+    var aspect = sign.signatureWidth && sign.signatureHeight ? sign.signatureWidth / sign.signatureHeight : 3.5;
+    sign.hRatio = Math.max(.035, sign.wRatio * rect.width / (aspect * Math.max(1, rect.height)));
+    sign.xRatio = Math.max(0, Math.min(1 - sign.wRatio, sign.xRatio)); sign.yRatio = Math.max(0, Math.min(1 - sign.hRatio, sign.yRatio));
+    image.src = sign.signatureDataUrl; overlay.hidden = false; overlay.style.left = (sign.xRatio * 100) + '%'; overlay.style.top = (sign.yRatio * 100) + '%'; overlay.style.width = (sign.wRatio * 100) + '%'; overlay.style.opacity = sign.opacity;
+    if (date) { date.hidden = !sign.includeDate; date.textContent = sign.includeDate ? indonesianDate() : ''; }
+  }
+
+  function syncSignSizeControl() {
+    var size = document.getElementById('sign-size-input'); var output = document.getElementById('sign-size-output');
+    if (size) size.value = String(Math.round(state.signPdf.wRatio * 100)); if (output) output.textContent = Math.round(state.signPdf.wRatio * 100) + '%';
+  }
+
+  function clearSignPdfPreview() {
+    var sign = state.signPdf; sign.renderToken += 1; sign.pdfDocument = null; sign.pdfFile = null; sign.pageNumber = 1; sign.pageCount = 0;
+    var canvas = document.getElementById('sign-pdf-canvas'); var empty = document.getElementById('sign-preview-empty'); var overlay = document.getElementById('sign-pdf-overlay');
+    if (canvas) { canvas.width = 1; canvas.height = 1; canvas.hidden = true; }
+    if (empty) { empty.hidden = false; empty.textContent = 'Pilih satu file PDF untuk memuat pratinjau halaman.'; }
+    if (overlay) overlay.hidden = true; updateSignPageControls();
+  }
+
+  async function loadSignPdfPreview() {
+    if (state.selectedTool !== 'sign-pdf' || !state.files[0]) return;
+    var sign = state.signPdf; var file = state.files[0]; var token = ++sign.renderToken;
+    var empty = document.getElementById('sign-preview-empty'); if (empty) { empty.hidden = false; empty.textContent = 'Memuat halaman PDF…'; }
+    try {
+      await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'pdfjsLib'); configurePdfWorker();
+      var buffer = await readFileAsArrayBuffer(file); var documentTask = window.pdfjsLib.getDocument({ data: new Uint8Array(buffer) }); var pdf = await documentTask.promise;
+      if (token !== sign.renderToken || state.selectedTool !== 'sign-pdf') { if (pdf.destroy) pdf.destroy(); return; }
+      sign.pdfDocument = pdf; sign.pdfFile = file; sign.pageCount = pdf.numPages; sign.pageNumber = 1; updateSignPageControls(); await renderSignPdfPage();
+    } catch (error) {
+      if (token !== sign.renderToken) return;
+      if (empty) empty.textContent = 'Pratinjau PDF gagal dimuat.';
+      showToast('Gagal memuat pratinjau PDF: ' + getErrorMessage(error), 'error');
+    }
+  }
+
+  async function renderSignPdfPage() {
+    var sign = state.signPdf; var canvas = document.getElementById('sign-pdf-canvas'); var empty = document.getElementById('sign-preview-empty');
+    if (!sign.pdfDocument || !canvas) return;
+    var token = sign.renderToken;
+    try {
+      var page = await sign.pdfDocument.getPage(sign.pageNumber); var viewport = page.getViewport({ scale: 1.6 });
+      var ctx = canvas.getContext('2d'); canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height); canvas.hidden = false;
+      if (empty) empty.hidden = true;
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      if (token !== sign.renderToken) return;
+      updateSignPageControls(); updateSignatureOverlay();
+    } catch (error) { showToast('Gagal merender halaman PDF: ' + getErrorMessage(error), 'error'); }
+  }
+
+  function updateSignPageControls() {
+    var sign = state.signPdf; var label = document.getElementById('sign-page-label'); var prev = document.getElementById('sign-prev-page'); var next = document.getElementById('sign-next-page');
+    if (label) label.textContent = sign.pageCount ? 'Halaman ' + sign.pageNumber + ' dari ' + sign.pageCount : 'Pilih PDF';
+    if (prev) prev.disabled = sign.pageNumber <= 1; if (next) next.disabled = !sign.pageCount || sign.pageNumber >= sign.pageCount;
+  }
+
+  async function signPdfFile(file) {
+    var sign = state.signPdf; var scope = document.getElementById('sign-page-scope');
+    var sourceBytes = await readFileAsArrayBuffer(file); var pdfDoc = await window.PDFLib.PDFDocument.load(sourceBytes, { ignoreEncryption: true });
+    var signature = await pdfDoc.embedPng(dataUrlToUint8Array(sign.signatureDataUrl)); var pages = pdfDoc.getPages();
+    var targetPages = scope && scope.value === 'all' ? pages : [pages[Math.max(0, sign.pageNumber - 1)]];
+    var dateFont = sign.includeDate ? await pdfDoc.embedFont(window.PDFLib.StandardFonts.Helvetica) : null;
+    targetPages.forEach(function (page) {
+      if (!page) return;
+      var pageWidth = page.getWidth(); var pageHeight = page.getHeight();
+      var width = sign.wRatio * pageWidth; var height = width * (signature.height / signature.width);
+      var x = sign.xRatio * pageWidth;
+      var y = pageHeight - (sign.yRatio * pageHeight) - height;
+      x = Math.max(0, Math.min(pageWidth - width, x)); y = Math.max(0, Math.min(pageHeight - height, y));
+      page.drawImage(signature, { x: x, y: y, width: width, height: height, opacity: sign.opacity });
+      if (dateFont) page.drawText(indonesianDate(), { x: x, y: Math.max(6, y - 11), size: Math.max(7, Math.min(11, width / 18)), font: dateFont, color: window.PDFLib.rgb(0.07, 0.09, 0.15), opacity: sign.opacity });
+    });
+    var pdfBytes = await pdfDoc.save(); var baseName = file.name.replace(/\.pdf$/i, '') || 'dokumen';
+    return { blob: new Blob([pdfBytes], { type: 'application/pdf' }), filename: baseName + '_signed.pdf', sourceName: file.name, note: 'Ditandatangani secara lokal' };
+  }
+
+  function dataUrlToUint8Array(dataUrl) {
+    var base64 = String(dataUrl).split(',')[1]; if (!base64) throw new Error('Data tanda tangan PNG tidak valid.');
+    var binary = atob(base64); var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  function indonesianDate() {
+    try { return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()); }
+    catch (error) { return new Date().toLocaleDateString(); }
   }
 
   function addFiles(newFiles) {
@@ -1864,7 +2214,10 @@
       exportFileToGoogleDrive(file);
     });
 
-    if (addedCount > 0) { renderFiles(); setStatus(state.files.length + ' file siap diproses.'); }
+    if (addedCount > 0) {
+      renderFiles(); setStatus(state.files.length + ' file siap diproses.');
+      if (state.selectedTool === 'sign-pdf') loadSignPdfPreview();
+    }
   }
 
   function validateFilesAgainstTool() {
@@ -1873,6 +2226,10 @@
     if (validFiles.length !== state.files.length) { state.files = validFiles; setStatus('Beberapa file dihapus.', true); }
     if (state.files.length > tool.maxFiles) { state.files = state.files.slice(0, tool.maxFiles); setStatus('Jumlah file dipangkas.', true); }
     renderFiles();
+    if (state.selectedTool === 'sign-pdf') {
+      if (state.files.length) loadSignPdfPreview();
+      else clearSignPdfPreview();
+    }
   }
 
   function renderFiles() {
@@ -1892,7 +2249,7 @@
     });
   }
 
-  function clearFiles() { state.files = []; renderFiles(); }
+  function clearFiles() { state.files = []; if (state.selectedTool === 'sign-pdf') clearSignPdfPreview(); renderFiles(); }
 
   function clearResults() {
     if (state.results && state.results.length) {
@@ -2192,6 +2549,12 @@
             state.lastFailures.push({ file: state.files[p].name, error: e.message });
           }
         }
+      } else if (tool === 'sign-pdf') {
+        if (!state.files[0]) throw new Error('Pilih satu file PDF terlebih dahulu.');
+        if (!state.signPdf.signatureDataUrl) throw new Error('Buat, ketik, atau unggah gambar tanda tangan PNG terlebih dahulu.');
+        updateProgress(10, 'Menyiapkan mesin tanda tangan PDF...');
+        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', 'PDFLib');
+        outputs.push(await signPdfFile(state.files[0]));
       } else if (tool === 'image-to-text') {
         var langEl = document.getElementById('ocr-lang-select');
         var ocrLang = langEl ? langEl.value : 'ind';
