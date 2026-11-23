@@ -53,10 +53,22 @@
       async function loadSharedFile(code) {
         try {
           var response = await supabaseClient
-            .from('shared_links')
-            .select('short_code, public_url, filename, mime_type, file_size, expires_at')
-            .eq('short_code', code)
+            .rpc('get_shared_link_by_code', { p_code: code })
             .maybeSingle();
+
+          var missingRpc = response.error && (
+            response.error.code === 'PGRST202' ||
+            response.error.code === '42883' ||
+            /could not find the function|get_shared_link_by_code/i.test(response.error.message || '')
+          );
+
+          if (missingRpc) {
+            response = await supabaseClient
+              .from('shared_links')
+              .select('short_code, public_url, filename, mime_type, file_size, expires_at')
+              .eq('short_code', code)
+              .maybeSingle();
+          }
 
           if (response.error) {
             if (response.error.code === 'PGRST116') { renderUnavailable(); return; }
