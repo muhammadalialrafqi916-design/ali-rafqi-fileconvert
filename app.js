@@ -3,6 +3,10 @@
 
   var SUPABASE_URL = 'https://vdugagtqchydcjoqegsh.supabase.co';
   var SUPABASE_ANON_KEY = 'sb_publishable_b67btfPJYVb7Uc2oTonFIg_XQfwr7Hy';
+  // Site Key publik Cloudflare Turnstile (JANGAN pernah menaruh Secret Key di frontend/GitHub)
+  var TURNSTILE_SITE_KEY = (typeof window !== 'undefined' && typeof window.ALIDEV_TURNSTILE_SITE_KEY === 'string')
+    ? window.ALIDEV_TURNSTILE_SITE_KEY.trim()
+    : '0x4AAAAAAGOvsUFvnpYVkFEd';
   var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   var THEME_KEY = 'aliRafqiFileStudio.theme.v1';
@@ -14,6 +18,19 @@
   var MAX_SHARED_FILE_SIZE = 50 * 1024 * 1024;
   var MAX_IMAGE_PIXELS = 40000000;
   var MAX_PDF_PAGES = 60;
+  var AUTH_BURST_WINDOW_MS = 2 * 60 * 1000;
+  var AUTH_MAX_BURST = 5;
+  var AUTH_COOLDOWN_MS = 60 * 1000;
+  var SHARE_COOLDOWN_MS = 15 * 1000;
+  var SHARE_WINDOW_MS = 10 * 60 * 1000;
+  var SHARE_MAX_WINDOW = 5;
+
+  var turnstileWidgetId = null;
+  var turnstileToken = '';
+  var authAttempts = [];
+  var authLockedUntil = 0;
+  var shareTimestamps = [];
+  var shareDedupCache = Object.create(null);
 
   var toastQueue = [];
   var toastVisible = false;
@@ -114,6 +131,7 @@
     [
       'auth-screen', 'studio-shell', 'auth-form', 'auth-kicker', 'auth-heading', 'auth-description', 'auth-message',
       'auth-submit', 'auth-submit-label', 'switch-auth-mode', 'switch-copy', 'display-name', 'username', 'password',
+      'auth-website', 'auth-turnstile',
       'remember-device', 'theme-toggle', 'open-history', 'history-count', 'open-settings', 'profile-avatar', 'profile-name',
       'welcome-name', 'settings-avatar', 'settings-name', 'settings-username', 'logout-button', 'delete-local-data',
       'file-picker', 'drop-zone', 'drop-title', 'file-requirements', 'choose-files', 'selected-files', 'selected-file-count',
@@ -131,7 +149,47 @@
     ].forEach(function (id) { el[id] = document.getElementById(id); });
   }
 
+  function initializeTurnstileIfConfigured() {
+    if (!TURNSTILE_SITE_KEY || !el['auth-turnstile']) return;
+    el['auth-turnstile'].hidden = false;
+    var renderWidget = function () {
+      if (!window.turnstile || turnstileWidgetId !== null) return;
+      turnstileWidgetId = window.turnstile.render(el['auth-turnstile'], {
+        sitekey: TURNSTILE_SITE_KEY,
+        theme: 'auto',
+        callback: function (token) { turnstileToken = token || ''; },
+        'expired-callback': function () { turnstileToken = ''; },
+        'error-callback': function () {
+          turnstileToken = '';
+          setAuthMessage('Verifikasi keamanan Turnstile gagal dimuat untuk domain ini. Muat ulang halaman atau cek pengaturan domain di Cloudflare.');
+        }
+      });
+    };
+    if (window.turnstile) {
+      renderWidget();
+      return;
+    }
+    var script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async = true;
+    script.defer = true;
+    script.onload = renderWidget;
+    script.onerror = function () {
+      turnstileToken = '';
+      setAuthMessage('Gagal memuat skrip keamanan Turnstile. Pastikan koneksi internet aktif dan tidak terblokir ekstensi.');
+    };
+    document.head.appendChild(script);
+  }
+
+  function resetTurnstileWidget() {
+    turnstileToken = '';
+    if (window.turnstile && turnstileWidgetId !== null) {
+      try { window.turnstile.reset(turnstileWidgetId); } catch (e) {}
+    }
+  }
+
   async function initializeApplication() {
+    initializeTurnstileIfConfigured();
     try {
       await restoreSession();
     } catch (error) {
@@ -923,12 +981,21 @@
        }
     }
 
+    if (el.password) {
+       el.password.minLength = isReg ? 8 : 6;
+       el.password.placeholder = isReg ? 'Minimal 8 karakter' : 'Minimal 6 karakter';
+       el.password.autocomplete = isReg ? 'new-password' : 'current-password';
+    }
+
     setAuthMessage('');
     if (el['auth-form']) el['auth-form'].reset();
+    resetTurnstileWidget();
   }
 
-  function setAuthMessage(text) { 
-    if (el['auth-message']) el['auth-message'].textContent = text; 
+  function setAuthMessage(text, isSuccess) {
+    if (!el['auth-message']) return;
+    el['auth-message'].textContent = text || '';
+    el['auth-message'].classList.toggle('is-success', Boolean(isSuccess));
   }
 
   function setFormLoading(isLoading) {
@@ -936,32 +1003,120 @@
     if (el['auth-form']) el['auth-form'].classList.toggle('loading', isLoading);
   }
 
+  function isValidAuthEmail(rawEmail, isSignup) {
+    var email = String(rawEmail || '').trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 254) {
+      return { valid: false, reason: 'Masukkan alamat email yang valid.' };
+    }
+    var domain = email.split('@')[1] || '';
+    if (!domain || domain.indexOf('..') !== -1 || domain.indexOf('_') !== -1) {
+      return { valid: false, reason: 'Domain email tidak valid.' };
+    }
+    var parts = domain.split('.');
+    var primaryLabel = parts[0] || '';
+    var tld = parts[parts.length - 1] || '';
+    if (!/^[a-z]{2,24}$/.test(tld)) {
+      return { valid: false, reason: 'Akhiran domain email tidak valid.' };
+    }
+    if (isSignup && /^\d+$/.test(primaryLabel)) {
+      return { valid: false, reason: 'Gunakan email asli dengan domain yang valid (bukan domain angka).' };
+    }
+    return { valid: true };
+  }
+
+  function mapAuthErrorMessage(err) {
+    var raw = String((err && err.message) || '');
+    if (/email not confirmed/i.test(raw)) {
+      return 'Email belum diverifikasi. Silakan buka kotak masuk/spam Anda dan klik tautan verifikasi.';
+    }
+    if (/rate limit|too many requests|429/i.test(raw)) {
+      return 'Terlalu banyak percobaan dalam waktu singkat. Silakan tunggu beberapa menit.';
+    }
+    if (/already registered|already exists/i.test(raw)) {
+      return 'Email ini sudah terdaftar. Silakan masuk menggunakan kata sandi Anda.';
+    }
+    if (/captcha/i.test(raw)) {
+      return 'Verifikasi keamanan anti-bot gagal. Silakan centang ulang verifikasi.';
+    }
+    if (/invalid login credentials/i.test(raw)) {
+      return 'Email atau kata sandi salah.';
+    }
+    return raw || 'Gagal masuk. Periksa kembali data Anda.';
+  }
+
   async function submitAuthForm() {
-    setFormLoading(true);
     setAuthMessage('');
 
+    // 1. Cek perangkap bot (honeypot tersembunyi)
+    var hpVal = el['auth-website'] ? el['auth-website'].value.trim() : '';
+    if (hpVal) {
+      finishAuthError(null, 'Permintaan ditolak oleh filter keamanan.');
+      return;
+    }
+
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      finishAuthError(null, 'Selesaikan verifikasi anti-bot Turnstile terlebih dahulu.');
+      return;
+    }
+
+    // 2. Proteksi rate-limit & lockout lokal dari percobaan bertubi-tubi
+    var now = Date.now();
+    if (authLockedUntil > now) {
+      var waitSec = Math.max(1, Math.ceil((authLockedUntil - now) / 1000));
+      finishAuthError(null, 'Terlalu banyak percobaan masuk/daftar. Tunggu ' + waitSec + ' detik sebelum mencoba lagi.');
+      return;
+    }
+    authAttempts = authAttempts.filter(function (ts) { return ts > now - AUTH_BURST_WINDOW_MS; });
+    if (authAttempts.length >= AUTH_MAX_BURST) {
+      authLockedUntil = now + AUTH_COOLDOWN_MS;
+      finishAuthError(null, 'Terlalu banyak percobaan dalam 2 menit terakhir. Tunggu 60 detik sebelum mencoba lagi.');
+      return;
+    }
+    authAttempts.push(now);
+
+    setFormLoading(true);
+
     var dNameEl = el['display-name'];
-    var unameEl = el.username; 
+    var unameEl = el.username;
     var passEl = el.password;
 
     var dName = dNameEl ? dNameEl.value.trim() : '';
     var email = unameEl ? unameEl.value.trim().toLowerCase() : '';
     var pass = passEl ? passEl.value : '';
+    var isRegister = state.authMode === 'register';
 
-    if (!email || !email.includes('@')) { finishAuthError(unameEl, 'Masukkan alamat email yang valid.'); return; }
-    if (!pass || pass.length < 6) { finishAuthError(passEl, 'Kata sandi minimal 6 karakter.'); return; }
+    var emailCheck = isValidAuthEmail(email, isRegister);
+    if (!emailCheck.valid) { finishAuthError(unameEl, emailCheck.reason); return; }
+
+    var minLen = isRegister ? 8 : 6;
+    if (!pass || pass.length < minLen) {
+      finishAuthError(passEl, 'Kata sandi minimal ' + minLen + ' karakter.');
+      return;
+    }
 
     try {
-      if (state.authMode === 'register') {
+      if (isRegister) {
         if (!dName) { finishAuthError(dNameEl, 'Nama lengkap diperlukan.'); return; }
+
+        var signUpOptions = { data: { full_name: dName } };
+        if (turnstileToken) signUpOptions.captchaToken = turnstileToken;
 
         var authResp = await supabaseClient.auth.signUp({
           email: email,
           password: pass,
-          options: { data: { full_name: dName } }
+          options: signUpOptions
         });
 
         if (authResp.error) throw authResp.error;
+
+        // Jika Supabase Confirm Email ON, session bernilai null -> JANGAN masuk Studio dulu & JANGAN upsert profil sebelum verifikasi!
+        if (!authResp.data || !authResp.data.session) {
+          setFormLoading(false);
+          setAuthMode('login');
+          if (el.username) el.username.value = email;
+          setAuthMessage('Pendaftaran berhasil! Cek email Anda dan klik tautan verifikasi sebelum masuk ke Studio.', true);
+          return;
+        }
 
         var defaultData = {
           history: [],
@@ -987,25 +1142,36 @@
           };
         }
 
+        authAttempts = [];
+        authLockedUntil = 0;
         finishAuthSuccess(state.currentUser);
       } else {
-        var signInResp = await supabaseClient.auth.signInWithPassword({
-          email: email,
-          password: pass
-        });
+        var signInPayload = { email: email, password: pass };
+        if (turnstileToken) signInPayload.options = { captchaToken: turnstileToken };
 
-        if (signInResp.error) throw new Error('Email atau kata sandi salah.');
+        var signInResp = await supabaseClient.auth.signInWithPassword(signInPayload);
+        if (signInResp.error) throw signInResp.error;
 
         var profileResp = await supabaseClient
           .from('user_profiles')
           .select('*')
           .eq('id', signInResp.data.user.id)
-          .single();
+          .maybeSingle();
 
         var profile = profileResp.data;
         var displayName = profile?.username || signInResp.data.user.user_metadata?.full_name || email.split('@')[0];
         var savedData = profile?.user_data || { history: [], settings: {} };
         var avatarUrl = await generateAvatarDataUrl(displayName);
+
+        // Jika akun baru saja mengonfirmasi email dan profil belum dibuat, buat otomatis sekarang setelah sesi terverifikasi
+        if (!profile && signInResp.data.user) {
+          await supabaseClient.from('user_profiles').upsert([{
+            id: signInResp.data.user.id,
+            username: displayName,
+            email: email,
+            user_data: { history: [], settings: { autoConvert: false, autoDelete: false } }
+          }]);
+        }
 
         state.currentUser = {
           id: signInResp.data.user.id,
@@ -1016,17 +1182,21 @@
           settings: savedData.settings || {}
         };
 
+        authAttempts = [];
+        authLockedUntil = 0;
         finishAuthSuccess(state.currentUser);
       }
     } catch (err) {
       console.error(err);
-      finishAuthError(null, err.message || 'Gagal masuk. Periksa kembali data Anda.');
+      finishAuthError(null, mapAuthErrorMessage(err));
+    } finally {
+      resetTurnstileWidget();
     }
   }
 
   function finishAuthError(inputEl, msg) {
     if (inputEl) inputEl.setAttribute('aria-invalid', 'true');
-    setAuthMessage(msg);
+    setAuthMessage(msg, false);
     setFormLoading(false);
   }
 
@@ -1339,16 +1509,48 @@
     var result = state.pendingShareResult;
     if (!result || !result.blob) { showToast('Pilih hasil file yang ingin dibagikan terlebih dahulu.', 'error'); return; }
     if (!state.currentUser || !state.currentUser.id) { showToast('Masuk ke akun untuk membuat tautan bagikan.', 'error'); return; }
-    if (result.blob.size > MAX_SHARED_FILE_SIZE) { showToast('File untuk tautan bagikan maksimal 50 MB.', 'error'); return; }
+    if (result.blob.size <= 0 || result.blob.size > MAX_SHARED_FILE_SIZE) { showToast('Ukuran file untuk tautan bagikan harus antara 1 B hingga 50 MB.', 'error'); return; }
 
     var expiryHours = Number(el['share-expiry-select'] && el['share-expiry-select'].value);
     if ([1, 24, 168].indexOf(expiryHours) === -1) expiryHours = 24;
+
+    // Cegah duplikasi unggahan untuk hasil file & masa aktif yang sama persis
+    var dedupKey = state.currentUser.id + '|' + String(result.filename || 'file') + '|' + String(result.blob.size) + '|' + String(expiryHours);
+    if (shareDedupCache[dedupKey] && new Date(shareDedupCache[dedupKey].expires_at).getTime() > Date.now()) {
+      var cachedLink = shareDedupCache[dedupKey];
+      if (el['share-create-controls']) el['share-create-controls'].hidden = true;
+      showShareLinkResult(cachedLink);
+      setShareStatus('Menggunakan tautan aktif yang baru saja dibuat untuk file ini.', 'success');
+      return;
+    }
+
+    // Proteksi cooldown & burst flood di sisi klien
+    var now = Date.now();
+    shareTimestamps = shareTimestamps.filter(function (ts) { return ts > now - SHARE_WINDOW_MS; });
+    if (shareTimestamps.length >= SHARE_MAX_WINDOW) {
+      var waitMin = Math.max(1, Math.ceil((shareTimestamps[0] + SHARE_WINDOW_MS - now) / 60000));
+      var windowMsg = 'Batas pembuatan tautan sementara tercapai (maks. ' + SHARE_MAX_WINDOW + ' per 10 menit). Coba lagi dalam ' + waitMin + ' menit.';
+      setShareStatus(windowMsg, 'error');
+      showToast(windowMsg, 'error');
+      return;
+    }
+    var lastUploadAt = shareTimestamps[shareTimestamps.length - 1];
+    if (lastUploadAt && (now - lastUploadAt) < SHARE_COOLDOWN_MS) {
+      var waitSec = Math.max(1, Math.ceil((lastUploadAt + SHARE_COOLDOWN_MS - now) / 1000));
+      var cooldownMsg = 'Tunggu ' + waitSec + ' detik sebelum mengunggah tautan baru.';
+      setShareStatus(cooldownMsg, 'error');
+      showToast(cooldownMsg, 'error');
+      return;
+    }
+
     var button = el['create-share-link'];
     if (button) { button.disabled = true; button.textContent = 'Membuat tautan…'; }
     setShareStatus('Mengunggah file dan membuat tautan publik…');
 
     try {
       var link = await createSharedLink(result, expiryHours);
+      shareTimestamps.push(Date.now());
+      shareDedupCache[dedupKey] = link;
       await saveToHistory(Object.assign({}, result, {
         shareCode: link.short_code,
         shareUrl: buildShareUrl(link.short_code),
@@ -1363,9 +1565,12 @@
       setShareStatus('Tautan aktif berhasil dibuat.', 'success');
       showToast('Tautan dan Kode QR berhasil dibuat.', 'success');
     } catch (error) {
-      var message = 'Gagal membuat tautan bagikan: ' + getErrorMessage(error);
-      setShareStatus(message, 'error');
-      showToast(message, 'error');
+      var rawMsg = getErrorMessage(error);
+      var friendlyMsg = /row-level security|violates|kuota|terlalu banyak|verifikasi/i.test(rawMsg)
+        ? rawMsg
+        : ('Gagal membuat tautan bagikan: ' + rawMsg);
+      setShareStatus(friendlyMsg, 'error');
+      showToast(friendlyMsg, 'error');
     } finally {
       if (button) { button.disabled = false; button.innerHTML = '<span>Buat Tautan &amp; QR</span><b aria-hidden="true">→</b>'; }
     }
