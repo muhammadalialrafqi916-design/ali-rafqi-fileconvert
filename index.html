@@ -69,12 +69,17 @@
               <button class="show-password" type="button" aria-label="Tampilkan kata sandi">Tampil</button>
             </div>
           </div>
+          <div class="hp-trap" aria-hidden="true">
+            <label for="auth-website">Situs Web</label>
+            <input id="auth-website" name="website" type="text" tabindex="-1" autocomplete="off">
+          </div>
           <label class="remember-field"><input id="remember-device" type="checkbox" checked><span>Ingat sesi masuk saya</span></label>
+          <div id="auth-turnstile" class="auth-turnstile" hidden></div>
           <p class="form-message" id="auth-message" role="status" aria-live="polite"></p>
           <button class="primary-button wide" id="auth-submit" type="submit"><span id="auth-submit-label">Masuk ke Studio</span><b aria-hidden="true">→</b></button>
         </form>
         <div class="auth-switch"><button id="switch-auth-mode" type="button">Buat akun baru</button></div>
-        <p class="auth-footnote">Didukung oleh database Supabase Cloud.</p>
+        <p class="auth-footnote">Dilindungi verifikasi email, proteksi anti-bot, &amp; database Supabase Cloud.</p>
       </div>
     </div>
   </section>
@@ -362,6 +367,7 @@
   </dialog>
 
   <div class="toast-container" id="global-toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+  <script>window.ALIDEV_TURNSTILE_SITE_KEY = '0x4AAAAAAGOvsUFvnpYVkFEd';</script>
   <script src="app.js"></script>
 </body>
 </html>
