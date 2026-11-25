@@ -23,7 +23,7 @@
   var AUTH_COOLDOWN_MS = 60 * 1000;
   var SHARE_COOLDOWN_MS = 15 * 1000;
   var SHARE_WINDOW_MS = 10 * 60 * 1000;
-  var SHARE_MAX_WINDOW = 5;
+  var SHARE_MAX_WINDOW = 3;
 
   var turnstileWidgetId = null;
   var turnstileToken = '';
@@ -1576,17 +1576,36 @@
     }
   }
 
-  function sanitizeShareMimeType(mimeType) {
-    var mime = String(mimeType || '').trim().toLowerCase();
-    if (!mime || /html|svg|javascript|ecmascript|xml/i.test(mime)) {
-      return 'application/octet-stream';
+  var ALLOWED_SHARE_MIME_TYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'application/pdf',
+    'audio/wav',
+    'audio/mpeg',
+    'audio/mp4',
+    'video/mp4',
+    'video/webm',
+    'text/plain'
+  ];
+
+  function sanitizeShareMimeType(mimeType, filename) {
+    var raw = String(mimeType || '').trim().toLowerCase().split(';')[0].trim();
+    if (/html|svg|javascript|ecmascript|xml|x-msdownload|x-sh|php|octet-stream/i.test(raw)) {
+      throw new Error('Jenis file ini tidak diizinkan untuk diunggah ke cloud.');
     }
-    return mime;
+    if (ALLOWED_SHARE_MIME_TYPES.indexOf(raw) !== -1) {
+      return raw;
+    }
+    var ext = String(filename || '').split('.').pop().toLowerCase();
+    if (!raw && ext === 'txt') return 'text/plain';
+    throw new Error('Hanya file PDF, JPG, PNG, WebP, GIF, WAV, MP4, WebM, atau TXT yang diizinkan untuk dibagikan.');
   }
 
   async function createSharedLink(result, expiryHours) {
     var blob = result.blob;
-    var safeMime = sanitizeShareMimeType(blob.type);
+    var safeMime = sanitizeShareMimeType(blob.type, result.filename);
     var expiresAt = new Date(Date.now() + (expiryHours * 60 * 60 * 1000)).toISOString();
     var safeFilename = makeSafeFilename(result.filename);
     var lastError;
